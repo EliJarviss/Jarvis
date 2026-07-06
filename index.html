@@ -1,0 +1,2261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Asistente</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg: #0A0D12;
+    --surface: #11151C;
+    --surface-hi: #171C25;
+    --line: #232A35;
+    --accent: #5EEAD4;
+    --accent-dim: #3A9E92;
+    --amber: #FBBF24;
+    --text: #E8EDF2;
+    --muted: #6B7684;
+    --danger: #F2617A;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin:0; padding:0; height:100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    overscroll-behavior: none;
+  }
+  body{
+    background-image:
+      radial-gradient(circle at 20% 0%, rgba(94,234,212,0.06), transparent 40%),
+      radial-gradient(circle at 100% 100%, rgba(251,191,36,0.04), transparent 45%);
+  }
+  .app{
+    max-width: 480px;
+    margin: 0 auto;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---------- HEADER ---------- */
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 18px 18px 14px;
+    border-bottom: 1px solid var(--line);
+    flex-shrink:0;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand-dot{
+    width:9px; height:9px; border-radius:50%;
+    background: var(--muted);
+    transition: background .3s, box-shadow .3s;
+  }
+  .brand-dot.live{ background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+  .brand-dot.rec{ background: var(--amber); box-shadow: 0 0 10px var(--amber); animation: blink 1s infinite; }
+  @keyframes blink{ 50%{ opacity:.35; } }
+  .brand h1{
+    font-family:'Space Grotesk', sans-serif;
+    font-size: 18px; font-weight:600; letter-spacing:.02em; margin:0;
+  }
+  .brand small{
+    display:block; font-family:'JetBrains Mono', monospace;
+    font-size:10.5px; color: var(--muted); letter-spacing:.06em; margin-top:1px;
+  }
+  .icon-btn{
+    width:36px; height:36px; border-radius:10px;
+    background: var(--surface); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
+    color: var(--muted); cursor:pointer; transition:.2s;
+  }
+  .icon-btn:hover{ color: var(--text); border-color: var(--accent-dim); }
+  .icon-btn.active{ color: var(--bg); background: var(--accent); border-color: var(--accent); }
+
+  /* ---------- CAMERA STRIP ---------- */
+  .cam-strip{
+    display:none; padding: 10px 18px; border-bottom: 1px solid var(--line);
+    flex-shrink:0; gap:10px; align-items:center;
+  }
+  .cam-strip.show{ display:flex; }
+  .cam-preview{
+    width:64px; height:64px; border-radius:10px; overflow:hidden;
+    background:#000; border:1px solid var(--accent-dim); flex-shrink:0; position:relative;
+  }
+  .cam-preview video{ width:100%; height:100%; object-fit:cover; }
+  .cam-info{ flex:1; min-width:0; }
+  .cam-info .t{ font-size:12.5px; color: var(--accent); font-weight:600; }
+  .cam-info .s{ font-size:11.5px; color: var(--muted); }
+  .cam-look-btn{
+    font-family:'JetBrains Mono', monospace; font-size:10.5px;
+    background: transparent; border:1px solid var(--accent-dim); color:var(--accent);
+    padding: 7px 10px; border-radius:8px; cursor:pointer; white-space:nowrap;
+  }
+
+  /* ---------- CHAT ---------- */
+  .chat{
+    flex:1; overflow-y:auto; padding: 18px;
+    display:flex; flex-direction:column; gap:14px;
+  }
+  .msg{ display:flex; gap:10px; max-width: 100%; animation: rise .25s ease; }
+  @keyframes rise{ from{ opacity:0; transform: translateY(6px);} to{ opacity:1; transform:none; } }
+  .msg.user{ flex-direction:row-reverse; }
+  .avatar{
+    width:26px; height:26px; border-radius:7px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono', monospace; font-size:10px; font-weight:600;
+    margin-top:2px;
+  }
+  .msg.assistant .avatar{ background: rgba(94,234,212,.12); color: var(--accent); border:1px solid var(--accent-dim); }
+  .msg.user .avatar{ background: var(--surface-hi); color: var(--muted); border:1px solid var(--line); }
+  .bubble{
+    background: var(--surface); border:1px solid var(--line);
+    padding: 11px 13px; border-radius: 12px;
+    font-size: 14.5px; line-height:1.5; max-width: 82%;
+  }
+  .msg.user .bubble{ background: var(--surface-hi); }
+  .bubble.err{ border-color: var(--danger); color:#FFC9D2; }
+  .bubble img{ max-width:100%; border-radius:8px; margin-top:8px; display:block; }
+  .bubble .thumb-tag{
+    font-family:'JetBrains Mono', monospace; font-size:10px; color: var(--accent);
+    margin-bottom:4px; display:flex; align-items:center; gap:5px;
+  }
+  .typing{ display:flex; gap:4px; padding: 4px 0; }
+  .typing span{
+    width:5px; height:5px; border-radius:50%; background: var(--accent);
+    animation: tb 1.2s infinite;
+  }
+  .typing span:nth-child(2){ animation-delay:.15s; }
+  .typing span:nth-child(3){ animation-delay:.3s; }
+  @keyframes tb{ 0%,60%,100%{ opacity:.25; transform: translateY(0);} 30%{ opacity:1; transform: translateY(-3px);} }
+
+  .empty{
+    margin:auto; text-align:center; color: var(--muted); padding: 30px;
+  }
+  .empty .ring{
+    width:64px; height:64px; border-radius:50%; margin: 0 auto 16px;
+    border: 1px solid var(--accent-dim);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .empty .ring div{ width:8px; height:8px; border-radius:50%; background:var(--accent); }
+  .empty h2{ font-family:'Space Grotesk', sans-serif; color: var(--text); font-size:16px; margin: 0 0 6px; }
+  .empty p{ font-size:13px; max-width: 260px; margin: 0 auto; line-height:1.5; }
+
+  /* ---------- INPUT BAR ---------- */
+  .inputbar{
+    flex-shrink:0; padding: 12px 14px; padding-bottom: max(12px, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    display:flex; align-items:flex-end; gap:8px;
+    background: var(--bg);
+  }
+  .field-wrap{
+    flex:1; background: var(--surface); border:1px solid var(--line);
+    border-radius: 16px; padding: 4px 6px 4px 14px;
+    display:flex; align-items:center; gap:6px;
+  }
+  .field-wrap:focus-within{ border-color: var(--accent-dim); }
+  textarea{
+    flex:1; background:none; border:none; outline:none; resize:none;
+    color: var(--text); font-family:'Inter', sans-serif; font-size:14.5px;
+    line-height:1.4; max-height: 90px; padding: 8px 0;
+  }
+  textarea::placeholder{ color: var(--muted); }
+  .cam-toggle{
+    width:32px; height:32px; border-radius:50%; flex-shrink:0;
+    background:none; border:none; color: var(--muted); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; transition:.2s;
+  }
+  .cam-toggle.active{ color: var(--accent); }
+
+  .send-btn{
+    width:44px; height:44px; border-radius:50%; flex-shrink:0;
+    background: var(--surface); border:1px solid var(--line); color:var(--muted);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; transition:.2s;
+  }
+  .send-btn.ready{ background: var(--accent); border-color:var(--accent); color:var(--bg); }
+
+  .orb{
+    width:44px; height:44px; border-radius:50%; flex-shrink:0; position:relative;
+    background: var(--surface); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+  .orb .ripple{
+    position:absolute; inset:-6px; border-radius:50%;
+    border: 1px solid var(--amber); opacity:0;
+  }
+  .orb.listening{ background: var(--amber); border-color: var(--amber); }
+  .orb.listening svg{ stroke: var(--bg); }
+  .orb.listening .ripple{ animation: pulse-ring 1.4s infinite; }
+  @keyframes pulse-ring{
+    0%{ transform:scale(.9); opacity:.6;}
+    100%{ transform:scale(1.5); opacity:0;}
+  }
+  .orb svg{ stroke: var(--muted); transition:.2s; }
+
+  svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+  /* ---------- MODAL ---------- */
+  .modal-bg{
+    position:fixed; inset:0; background: rgba(0,0,0,.7);
+    display:flex; align-items:center; justify-content:center; z-index:50; padding:20px;
+  }
+  .modal{
+    background: var(--surface); border:1px solid var(--line); border-radius:16px;
+    padding: 24px; max-width: 380px; width:100%;
+    max-height: 88vh; overflow-y: auto;
+  }
+  .modal h2{ font-family:'Space Grotesk', sans-serif; font-size:17px; margin:0 0 6px; }
+  .modal p{ font-size:13px; color: var(--muted); line-height:1.55; margin: 0 0 18px; }
+  .modal a{ color: var(--accent); }
+  .modal label{ font-family:'JetBrains Mono', monospace; font-size:10.5px; color: var(--muted); letter-spacing:.05em; }
+  .modal input[type=text], .modal input[type=password], .modal select{
+    width:100%; background: var(--bg); border:1px solid var(--line); color: var(--text);
+    padding: 11px 12px; border-radius:9px; font-size:14px; margin: 6px 0 16px; font-family:'JetBrains Mono', monospace;
+  }
+  .modal select{ font-family:'Inter',sans-serif; }
+  .modal-actions{ display:flex; gap:10px; position:sticky; bottom:0; background:var(--surface); padding-top:14px; }
+  .btn{
+    flex:1; padding: 11px; border-radius:9px; border:1px solid var(--line);
+    background: var(--surface-hi); color: var(--text); font-weight:600; font-size:13.5px; cursor:pointer;
+  }
+  .btn.primary{ background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .toggle-row{ display:flex; align-items:center; justify-content:space-between; padding: 10px 0; border-top:1px solid var(--line); }
+  .toggle-row span{ font-size:13.5px; }
+  .switch{ width:38px; height:22px; border-radius:11px; background: var(--line); position:relative; cursor:pointer; flex-shrink:0; }
+  .switch.on{ background: var(--accent-dim); }
+  .switch::after{
+    content:''; position:absolute; top:2px; left:2px; width:18px; height:18px;
+    border-radius:50%; background: var(--muted); transition:.2s;
+  }
+  .switch.on::after{ left:18px; background: var(--bg); }
+
+  .chat::-webkit-scrollbar{ width:5px; }
+  .chat::-webkit-scrollbar-thumb{ background: var(--line); border-radius:3px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <header>
+    <div class="brand">
+      <div class="brand-dot" id="statusDot"></div>
+      <div>
+        <h1 id="assistantName">ASISTENTE</h1>
+        <small id="statusText">EN ESPERA</small>
+      </div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <div class="icon-btn" id="remindersBtn" title="Recordatorios">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </div>
+      <div class="icon-btn" id="readModeBtn" title="Leer o resumir un texto">
+        <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </div>
+      <div class="icon-btn" id="interpreterBtn" title="Modo intérprete">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      </div>
+      <div class="icon-btn" id="profilesBtn" title="Perfiles">
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <div class="icon-btn" id="camBtn" title="Cámara">
+        <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      </div>
+      <div class="icon-btn" id="settingsBtn" title="Configuración">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </div>
+    </div>
+  </header>
+
+  <div class="cam-strip" id="camStrip">
+    <div class="cam-preview"><video id="camVideo" autoplay playsinline muted></video></div>
+    <div class="cam-info">
+      <div class="t">Cámara activa</div>
+      <div class="s">Ve lo que le muestres al preguntar</div>
+    </div>
+    <button class="cam-look-btn" id="lookBtn">MIRAR AHORA</button>
+  </div>
+
+  <div class="chat" id="chat">
+    <div class="empty" id="emptyState">
+      <div class="ring"><div></div></div>
+      <h2>Todo listo</h2>
+      <p>Escribí, hablá tocando el micrófono, o activá la cámara para que analice lo que le mostrás.</p>
+    </div>
+  </div>
+
+  <div class="attach-preview" id="attachPreview" style="display:none; padding: 8px 14px 0; align-items:center; gap:8px;">
+    <div style="position:relative; width:52px; height:52px; border-radius:10px; overflow:hidden; border:1px solid var(--accent-dim); flex-shrink:0;">
+      <img id="attachPreviewImg" style="width:100%; height:100%; object-fit:cover;">
+      <div id="removeAttachBtn" style="position:absolute; top:2px; right:2px; width:16px; height:16px; background:rgba(0,0,0,.7); border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; color:#fff;">✕</div>
+    </div>
+    <span style="font-size:12px; color:var(--muted);">Imagen lista para enviar</span>
+  </div>
+
+  <div class="inputbar">
+    <button class="cam-toggle" id="camToggleInline" title="Activar cámara">
+      <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    </button>
+    <input type="file" id="galleryInput" accept="image/*" style="display:none;">
+    <button class="cam-toggle" id="galleryBtn" title="Elegir foto">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+    </button>
+    <div class="field-wrap">
+      <textarea id="textInput" placeholder="Escribí, hablá o pegá una imagen..." rows="1"></textarea>
+    </div>
+    <div class="orb" id="micBtn">
+      <div class="ripple"></div>
+      <svg viewBox="0 0 24 24" id="micIcon"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+    </div>
+    <div class="send-btn" id="sendBtn">
+      <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </div>
+  </div>
+</div>
+
+<!-- Setup modal -->
+<div class="modal-bg" id="setupModal">
+  <div class="modal">
+    <h2>Configurar asistente</h2>
+    <p>Ya está todo conectado, no necesitás ninguna clave de API. Contame tu nombre para que te vaya conociendo.</p>
+    <label>TU NOMBRE</label>
+    <input type="text" id="userNameInput" placeholder="¿Cómo te llamás?">
+    <label>NOMBRE DEL ASISTENTE</label>
+    <input type="text" id="nameInput" placeholder="Ej: Jarvis" value="Jarvis">
+    <div class="modal-actions">
+      <button class="btn primary" id="saveKeyBtn" style="flex:1">Empezar</button>
+    </div>
+  </div>
+</div>
+
+<!-- settings modal -->
+<div class="modal-bg" id="settingsModal" style="display:none">
+  <div class="modal">
+    <h2>Configuración</h2>
+    <p>Ajustá cómo responde tu asistente.</p>
+
+    <div class="toggle-row" style="flex-direction:column; align-items:stretch; gap:10px; border-bottom:1px solid var(--line); padding-bottom:16px;">
+      <span style="font-weight:600;">👤 Tu perfil</span>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="position:relative; width:56px; height:56px; flex-shrink:0;">
+          <img id="profilePhotoImg" style="width:100%; height:100%; border-radius:50%; object-fit:cover; border:1px solid var(--accent-dim); display:none;">
+          <div id="profilePhotoPlaceholder" style="width:100%; height:100%; border-radius:50%; border:1px dashed var(--line); display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--muted); text-align:center;">sin foto</div>
+        </div>
+        <div style="flex:1;">
+          <input type="file" id="profilePhotoInput" accept="image/*" style="display:none;">
+          <button class="btn" id="profilePhotoBtn" style="font-size:12px; padding:6px 10px;">Cambiar foto</button>
+        </div>
+      </div>
+      <input type="text" id="profileNameInput" placeholder="Tu nombre" style="width:100%; background: var(--bg); border:1px solid var(--line); color: var(--text); padding: 10px 12px; border-radius:9px; font-size:14px;">
+      <input type="email" id="profileEmailInput" placeholder="Tu email (opcional, solo para tenerlo anotado)" style="width:100%; background: var(--bg); border:1px solid var(--line); color: var(--text); padding: 10px 12px; border-radius:9px; font-size:14px;">
+      <button class="btn primary" id="saveProfileInfoBtn" style="font-size:13px;">Guardar perfil</button>
+    </div>
+
+    <div class="toggle-row">
+      <span>Leer respuestas en voz alta</span>
+      <div class="switch on" id="voiceToggle"></div>
+    </div>
+    <div class="toggle-row">
+      <span>Escuchar en español</span>
+      <div class="switch on" id="langToggle"></div>
+    </div>
+    <div class="toggle-row" style="flex-direction:column; align-items:stretch; gap:6px;">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <span>🎙️ Escucha continua (beta)</span>
+        <div class="switch" id="continuousToggle"></div>
+      </div>
+      <small style="color:var(--muted); font-size:11px; line-height:1.4;">Te escucha sin que tengas que tocar el micrófono cada vez. Puede captar ruido de fondo o reiniciarse solo. Tocá el micrófono para pausarla o reanudarla en cualquier momento. Después de recargar la página, tenés que volver a activarla una vez (el navegador lo pide así).</small>
+      <input type="text" id="wakeWordInput" placeholder="Palabra de activación (por defecto: el nombre del asistente)" style="width:100%; background: var(--bg); border:1px solid var(--line); color: var(--text); padding: 9px 11px; border-radius:9px; font-size:13px; margin-top:4px;">
+    </div>
+    <div class="toggle-row" style="flex-direction:column; align-items:stretch; gap:6px;">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <span>🎩 Modo mayordomo británico</span>
+        <div class="switch" id="butlerToggle"></div>
+      </div>
+      <small style="color:var(--muted); font-size:11px; line-height:1.4;">Cambia el idioma de respuesta a inglés y busca una voz británica, para un tono más formal y elegante.</small>
+    </div>
+    <div class="toggle-row" style="flex-direction:column; align-items:stretch; gap:8px;">
+      <span>Idioma de respuesta</span>
+      <select id="replyLangSelect" style="width:100%; background: var(--bg); border:1px solid var(--line); color: var(--text); padding: 10px 12px; border-radius:9px; font-size:14px;">
+        <option value="español">Español</option>
+        <option value="inglés">Inglés</option>
+        <option value="portugués">Portugués</option>
+        <option value="francés">Francés</option>
+        <option value="italiano">Italiano</option>
+      </select>
+    </div>
+    <div class="toggle-row" style="flex-direction:column; align-items:stretch; gap:8px;">
+      <span>Voz del asistente</span>
+      <select id="voiceSelect" style="width:100%; background: var(--bg); border:1px solid var(--line); color: var(--text); padding: 10px 12px; border-radius:9px; font-size:14px;">
+        <option value="">Cargando voces...</option>
+      </select>
+    </div>
+    <div class="toggle-row" style="flex-direction:column; align-items:stretch; gap:8px;">
+      <span>Velocidad al hablar <span id="rateValue" style="color:var(--accent); font-family:'JetBrains Mono',monospace;">1.0x</span></span>
+      <input type="range" id="rateSlider" min="0.7" max="1.4" step="0.05" value="1.0" style="width:100%; accent-color: var(--accent);">
+    </div>
+    <div class="toggle-row" style="flex-direction:column; align-items:stretch; gap:8px; border-top:1px solid var(--line); padding-top:14px;">
+      <span style="font-weight:600;">🧠 Lo que recuerda de vos</span>
+      <div id="memoryView" style="font-size:12px; color:var(--muted); line-height:1.6; max-height:140px; overflow-y:auto; background:var(--bg); border:1px solid var(--line); border-radius:9px; padding:10px;">Cargando...</div>
+      <button class="btn" id="clearMemoryBtn" style="color:var(--danger); font-size:12.5px;">Borrar toda la memoria</button>
+    </div>
+    <div class="toggle-row" style="flex-direction:column; align-items:stretch; gap:8px; border-top:1px solid var(--line); padding-top:14px;">
+      <span style="font-weight:600;">💾 Copia de seguridad</span>
+      <small style="color:var(--muted); font-size:11px; line-height:1.4;">Descarga un archivo con todos los perfiles, su memoria e historial. Guardalo antes de hacer cambios grandes, por si algo sale mal.</small>
+      <input type="file" id="restoreBackupInput" accept="application/json" style="display:none;">
+      <div style="display:flex; gap:8px;">
+        <button class="btn" id="downloadBackupBtn" style="font-size:12.5px; flex:1;">⬇️ Descargar backup</button>
+        <button class="btn" id="restoreBackupBtn" style="font-size:12.5px; flex:1;">⬆️ Restaurar</button>
+      </div>
+      <div id="backupStatus" style="display:none; font-size:11.5px; color:var(--accent); font-family:'JetBrains Mono',monospace;"></div>
+    </div>
+    <div class="modal-actions" style="margin-top:18px">
+      <button class="btn" id="editKeyBtn">Cambiar nombre</button>
+      <button class="btn primary" id="closeSettingsBtn">Listo</button>
+    </div>
+  </div>
+</div>
+
+<!-- read/summary mode modal -->
+<div class="modal-bg" id="readModeModal" style="display:none">
+  <div class="modal">
+    <h2>Leer o resumir un texto</h2>
+    <p>Pegá un texto largo (un artículo, un mensaje, lo que sea) y elegí si querés que lo lea tal cual está escrito, o que te lo resuma antes de leerlo. Esto no se guarda como parte de la conversación normal.</p>
+    <input type="file" id="pdfInput" accept="application/pdf" style="display:none;">
+    <button class="btn" id="pdfUploadBtn" style="margin-bottom:12px; font-size:13px;">📎 Subir un PDF en vez de pegar texto</button>
+    <div id="pdfStatus" style="display:none; font-size:12px; color:var(--accent); margin: -6px 0 12px; font-family:'JetBrains Mono',monospace;"></div>
+    <textarea id="readModeInput" placeholder="Pegá el texto acá..." style="width:100%; min-height:160px; background: var(--bg); border:1px solid var(--line); color: var(--text); padding: 12px; border-radius:9px; font-size:14px; font-family:'Inter',sans-serif; resize:vertical;"></textarea>
+    <div class="modal-actions">
+      <button class="btn" id="readLiteralBtn">Leer tal cual</button>
+      <button class="btn primary" id="readSummaryBtn">Resumir y leer</button>
+    </div>
+    <div class="modal-actions" style="margin-top:8px;">
+      <button class="btn" id="closeReadModeBtn" style="background:transparent; border-color:var(--line); color:var(--muted);">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- interpreter mode modal -->
+<div class="modal-bg" id="interpreterModal" style="display:none">
+  <div class="modal">
+    <h2>Modo intérprete</h2>
+    <p>Elegí los idiomas, tocá el micrófono, decí una frase, y te la traduzco y leo en voz alta. No se guarda en el historial ni en la memoria.</p>
+
+    <div style="display:flex; align-items:flex-end; gap:10px; margin-bottom:6px;">
+      <div style="flex:1;">
+        <label>HABLÁS EN</label>
+        <select id="interpFromLang" style="width:100%; background: var(--bg); border:1px solid var(--line); color: var(--text); padding: 10px 12px; border-radius:9px; font-size:14px; margin-top:6px;">
+          <option value="español">Español</option>
+          <option value="inglés">Inglés</option>
+          <option value="portugués">Portugués</option>
+          <option value="francés">Francés</option>
+          <option value="italiano">Italiano</option>
+        </select>
+      </div>
+      <div style="padding-bottom:10px; cursor:pointer; color:var(--accent); font-size:18px;" id="interpSwapBtn" title="Invertir idiomas">⇄</div>
+      <div style="flex:1;">
+        <label>TRADUCIR A</label>
+        <select id="interpToLang" style="width:100%; background: var(--bg); border:1px solid var(--line); color: var(--text); padding: 10px 12px; border-radius:9px; font-size:14px; margin-top:6px;">
+          <option value="inglés">Inglés</option>
+          <option value="español">Español</option>
+          <option value="portugués">Portugués</option>
+          <option value="francés">Francés</option>
+          <option value="italiano">Italiano</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:center; margin: 18px 0 14px;">
+      <div class="orb" id="interpMicBtn" style="width:64px; height:64px;">
+        <div class="ripple"></div>
+        <svg viewBox="0 0 24 24" style="width:26px;height:26px;"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+      </div>
+    </div>
+
+    <div id="interpStatus" style="text-align:center; font-size:12px; color:var(--muted); font-family:'JetBrains Mono',monospace; margin-bottom:14px;">Tocá el micrófono y hablá</div>
+
+    <div id="interpOriginal" style="display:none; background: var(--bg); border:1px solid var(--line); border-radius:9px; padding:10px; font-size:13.5px; margin-bottom:8px; line-height:1.5;"></div>
+    <div id="interpTranslated" style="display:none; background: rgba(94,234,212,.08); border:1px solid var(--accent-dim); border-radius:9px; padding:10px; font-size:14.5px; color:var(--accent); line-height:1.5;"></div>
+
+    <div class="modal-actions" style="margin-top:18px;">
+      <button class="btn primary" id="closeInterpreterBtn" style="flex:1;">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- profiles modal -->
+<div class="modal-bg" id="profilesModal" style="display:none">
+  <div class="modal">
+    <h2>Perfiles</h2>
+    <p>Cada perfil tiene su propia memoria e historial. Los ajustes de voz y configuración se comparten entre todos.</p>
+
+    <div id="profilesList" style="display:flex; flex-direction:column; gap:8px; margin-bottom:18px;"></div>
+
+    <div style="border-top:1px solid var(--line); padding-top:14px;">
+      <label>NOMBRE DEL NUEVO PERFIL</label>
+      <input type="text" id="newProfileNameInput" placeholder="Ej: Mamá, Juan, invitado..." style="margin-bottom:10px;">
+      <button class="btn primary" id="addProfileBtn" style="width:100%;">+ Crear perfil nuevo</button>
+    </div>
+
+    <div class="modal-actions" style="margin-top:18px;">
+      <button class="btn" id="closeProfilesBtn" style="flex:1;">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- STORAGE REAL (Supabase) ----------
+// Reemplaza el window.storage que solo existía dentro de Claude.ai.
+// Mantiene la misma forma de uso (get/set/delete) para no tener que tocar el resto del código.
+const SUPABASE_URL = 'https://rsntvjfrpvxnfckgsbfj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_ldDBxUPNzGgRE33caCk3ZQ_E3urPq7h';
+const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+window.storage = {
+  async get(key){
+    const { data, error } = await _supabase.from('jarvis_kv').select('value').eq('key', key).maybeSingle();
+    if(error) throw error;
+    if(!data) return null;
+    return { key, value: data.value };
+  },
+  async set(key, value){
+    const { error } = await _supabase.from('jarvis_kv').upsert({ key, value, updated_at: new Date().toISOString() });
+    if(error) throw error;
+    return { key, value };
+  },
+  async delete(key){
+    const { error } = await _supabase.from('jarvis_kv').delete().eq('key', key);
+    if(error) throw error;
+    return { key, deleted: true };
+  }
+};
+
+let assistantName = 'Jarvis';
+let replyLang = 'español';
+let speechRate = 1.0;
+let selectedVoice = null;
+let pendingVoiceName = null;
+let availableVoices = [];
+let reminders = [];
+let pendingTaskConfirmation = null; // { text, minutes } cuando Jarvis preguntó "¿querés que te lo recuerde?" y espera respuesta
+let voiceOn = true;
+let langES = true;
+let britishButlerMode = false;
+let previousReplyLang = 'español';
+let continuousMode = false;
+let continuousPausedByUser = false;
+let continuousBusy = false;
+let wakeWord = '';
+let cameraOn = false;
+let stream = null;
+let history = [];
+let recognizing = false;
+let recognition = null;
+let profile = { name:'', facts:[], projects:[], routines:[], preferences:[], importantDates:[], moodLog:[], email:'', avatarPhoto:null };
+let profiles = []; // índice liviano: [{id, name, avatarPhoto}]
+let activeProfileId = null;
+let memoryReady = false;
+
+const $ = id => document.getElementById(id);
+const chat = $('chat'), emptyState = $('emptyState');
+const textInput = $('textInput');
+
+function applySettingsToVars(s){
+  if(!s) return;
+  if(s.assistantName) assistantName = s.assistantName;
+  if(s.replyLang) replyLang = s.replyLang;
+  if(typeof s.speechRate === 'number') speechRate = s.speechRate;
+  if(typeof s.voiceOn === 'boolean') voiceOn = s.voiceOn;
+  if(typeof s.langES === 'boolean') langES = s.langES;
+  if(typeof s.britishButlerMode === 'boolean') britishButlerMode = s.britishButlerMode;
+  if(s.previousReplyLang) previousReplyLang = s.previousReplyLang;
+  if(typeof s.continuousMode === 'boolean') continuousMode = s.continuousMode;
+  if(typeof s.wakeWord === 'string') wakeWord = s.wakeWord;
+  pendingVoiceName = s.voiceName || null;
+}
+
+function ensureProfileShape(){
+  if(!Array.isArray(profile.facts)) profile.facts = [];
+  if(!Array.isArray(profile.projects)) profile.projects = [];
+  if(!Array.isArray(profile.routines)) profile.routines = [];
+  if(!Array.isArray(profile.preferences)) profile.preferences = [];
+  if(!Array.isArray(profile.importantDates)) profile.importantDates = [];
+  if(!Array.isArray(profile.moodLog)) profile.moodLog = [];
+  if(!profile.projectMeta || typeof profile.projectMeta !== 'object') profile.projectMeta = {};
+  sanitizeProfileArrays();
+}
+
+// saca entradas corruptas (objetos, números, vacíos) que se hayan colado en algún momento,
+// para que cosas como "[object Object]" no se vuelvan a mostrar en pantalla
+function sanitizeProfileArrays(){
+  let huboLimpieza = false;
+  ['facts','projects','routines','preferences'].forEach(key => {
+    const limpio = profile[key].filter(item => typeof item === 'string' && item.trim().length > 0);
+    if(limpio.length !== profile[key].length) huboLimpieza = true;
+    profile[key] = limpio;
+  });
+  const fechasLimpias = profile.importantDates.filter(d => d && typeof d.what === 'string' && d.what.trim().length > 0);
+  if(fechasLimpias.length !== profile.importantDates.length) huboLimpieza = true;
+  profile.importantDates = fechasLimpias;
+  // saca metadata de proyectos que ya no existen en la lista
+  Object.keys(profile.projectMeta).forEach(key => {
+    if(!profile.projects.includes(key)) delete profile.projectMeta[key];
+  });
+  if(huboLimpieza) saveProfile();
+}
+
+async function saveProfilesIndex(){
+  await storageSetWithRetry('profiles_index', JSON.stringify(profiles));
+}
+
+// ---------- ESTADO DE LA APP (ajustes globales + perfiles, con migración automática) ----------
+async function loadAppState(){
+  let settingsLoaded = false;
+  try{
+    const res = await window.storage.get('app_settings');
+    if(res && res.value){
+      applySettingsToVars(JSON.parse(res.value));
+      settingsLoaded = true;
+    }
+  }catch(e){ /* primera vez que se usa el formato nuevo */ }
+
+  try{
+    const res = await window.storage.get('profiles_index');
+    if(res && res.value) profiles = JSON.parse(res.value);
+  }catch(e){ profiles = []; }
+
+  // migración: si no había índice de perfiles todavía, buscamos el formato viejo (un solo 'profile')
+  if(profiles.length === 0){
+    try{
+      const legacy = await window.storage.get('profile');
+      if(legacy && legacy.value){
+        const old = JSON.parse(legacy.value);
+        if(!settingsLoaded) applySettingsToVars(old.settings || {});
+        const migratedId = 'p_' + Date.now();
+        const memory = {
+          name: old.name || '', facts: old.facts || [], projects: old.projects || [],
+          routines: old.routines || [], preferences: old.preferences || [],
+          importantDates: old.importantDates || [], moodLog: old.moodLog || [],
+          email: old.email || '', avatarPhoto: old.avatarPhoto || null
+        };
+        await storageSetWithRetry('profile:' + migratedId, JSON.stringify(memory));
+        profiles = [{ id: migratedId, name: memory.name || 'Vos', avatarPhoto: memory.avatarPhoto || null }];
+        await saveProfilesIndex();
+        activeProfileId = migratedId;
+        try{
+          const oldChat = await window.storage.get('chatlog');
+          if(oldChat && oldChat.value) await storageSetWithRetry('chatlog:' + migratedId, oldChat.value);
+        }catch(e){ /* no había historial viejo */ }
+      }
+    }catch(e){ /* usuario totalmente nuevo, sin nada guardado */ }
+  }
+
+  if(!activeProfileId){
+    try{
+      const res = await window.storage.get('app_settings');
+      if(res && res.value){
+        const s = JSON.parse(res.value);
+        if(s.activeProfileId) activeProfileId = s.activeProfileId;
+      }
+    }catch(e){}
+  }
+  if(!activeProfileId && profiles.length) activeProfileId = profiles[0].id;
+
+  if(activeProfileId){
+    try{
+      const res = await window.storage.get('profile:' + activeProfileId);
+      if(res && res.value){ profile = JSON.parse(res.value); ensureProfileShape(); }
+    }catch(e){ /* perfil recién creado, todavía sin memoria guardada */ }
+  }
+
+  memoryReady = true;
+}
+
+function syncSettingsToProfile(){
+  const settings = {
+    assistantName, replyLang, speechRate, voiceOn, langES,
+    britishButlerMode, previousReplyLang, continuousMode, activeProfileId, wakeWord,
+    voiceName: selectedVoice ? selectedVoice.name : null
+  };
+  storageSetWithRetry('app_settings', JSON.stringify(settings));
+}
+
+// ---------- GUARDADO CON REINTENTO AUTOMÁTICO ----------
+async function storageSetWithRetry(key, value, retries){
+  retries = retries === undefined ? 2 : retries;
+  for(let attempt = 0; attempt <= retries; attempt++){
+    try{
+      await window.storage.set(key, value);
+      return true;
+    }catch(e){
+      if(attempt === retries){ console.error(`No se pudo guardar "${key}" tras reintentar`, e); return false; }
+      await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
+    }
+  }
+}
+
+async function saveProfile(){
+  if(!activeProfileId) return;
+  await storageSetWithRetry('profile:' + activeProfileId, JSON.stringify(profile));
+}
+
+function mergeMemory(extracted){
+  if(extracted.name && typeof extracted.name === 'string') profile.name = extracted.name;
+  ['facts','projects','routines','preferences'].forEach(key => {
+    if(Array.isArray(extracted[key])){
+      extracted[key].forEach(item => {
+        // solo guardamos texto real; si algo vino mal formado (objeto, número, etc) lo ignoramos
+        if(typeof item === 'string' && item.trim() && !profile[key].includes(item)){
+          profile[key].push(item);
+          if(key === 'projects') profile.projectMeta[item] = { addedAt: Date.now(), lastMentionedAt: Date.now() };
+        }
+      });
+    }
+  });
+  if(Array.isArray(extracted.importantDates)){
+    extracted.importantDates.forEach(d => {
+      if(!d || typeof d.what !== 'string' || !d.what.trim()) return;
+      const yaExiste = profile.importantDates.some(existing =>
+        existing.what.trim().toLowerCase() === d.what.trim().toLowerCase()
+      );
+      if(yaExiste) return;
+      profile.importantDates.push({ what: d.what, when: typeof d.when === 'string' ? d.when : '', savedAt: Date.now() });
+    });
+  }
+  if(extracted.mood && typeof extracted.mood === 'string'){
+    profile.moodLog.push({ mood: extracted.mood, at: Date.now() });
+    if(profile.moodLog.length > 20) profile.moodLog.shift();
+  }
+  saveProfile();
+}
+
+// ---------- SEGUIMIENTO DE PROYECTOS ABANDONADOS (mejora 7) ----------
+const PROJECT_STOPWORDS = new Set(['para','como','pero','esta','este','esto','desde','sobre','hacer','tener','entre','donde','cuando','porque','tambien','quiere','vía','para','sean']);
+
+// actualiza "última vez mencionado" cuando el texto del usuario roza alguna palabra clave de un proyecto guardado
+function touchMentionedProjects(userText){
+  if(!profile.projects.length) return;
+  const lower = userText.toLowerCase();
+  let tocado = false;
+  profile.projects.forEach(p => {
+    const palabrasClave = p.toLowerCase().split(/\s+/).filter(w => w.length > 3 && !PROJECT_STOPWORDS.has(w));
+    if(palabrasClave.length === 0) return;
+    const coincide = palabrasClave.some(w => lower.includes(w));
+    if(coincide){
+      if(!profile.projectMeta[p]) profile.projectMeta[p] = { addedAt: Date.now(), lastMentionedAt: Date.now() };
+      else profile.projectMeta[p].lastMentionedAt = Date.now();
+      tocado = true;
+    }
+  });
+  if(tocado) saveProfile();
+}
+
+// busca el proyecto más "abandonado" (sin mencionarse hace más de ABANDONED_DAYS días)
+function pickAbandonedProject(){
+  const ABANDONED_MS = 3 * 24 * 60 * 60 * 1000; // 3 días sin nombrarlo se considera abandonado
+  const now = Date.now();
+  const candidatos = profile.projects
+    .map(p => ({ text: p, meta: profile.projectMeta[p] }))
+    .filter(p => p.meta && (now - p.meta.lastMentionedAt) > ABANDONED_MS)
+    .sort((a, b) => a.meta.lastMentionedAt - b.meta.lastMentionedAt);
+  return candidatos.length ? candidatos[0] : null;
+}
+
+function buildMemoryContext(){
+  if(!profile.name && !profile.facts.length && !profile.projects.length && !profile.routines.length && !profile.preferences.length && !profile.importantDates.length){
+    return 'No tenés información previa guardada de esta persona todavía.';
+  }
+  let ctx = '';
+  if(profile.name) ctx += `Nombre: ${profile.name}\n`;
+  if(profile.facts.length) ctx += `Datos que te contó: ${profile.facts.join('; ')}\n`;
+  if(profile.projects.length) ctx += `Proyectos en los que trabaja: ${profile.projects.join('; ')}\n`;
+  if(profile.routines.length) ctx += `Rutinas/hábitos: ${profile.routines.join('; ')}\n`;
+  if(profile.preferences.length) ctx += `Preferencias: ${profile.preferences.join('; ')}\n`;
+  if(profile.importantDates.length) ctx += `Fechas importantes: ${profile.importantDates.map(d => `${d.what} (${d.when})`).join('; ')}\n`;
+  if(profile.moodLog.length){
+    const recent = profile.moodLog.slice(-3).map(m => m.mood).join(', ');
+    ctx += `Estados de ánimo recientes detectados: ${recent}\n`;
+  }
+  return ctx;
+}
+
+function buildBriefingGreeting(){
+  const hour = new Date().getHours();
+  const saludo = hour < 12 ? 'Buen día' : hour < 20 ? 'Buenas tardes' : 'Buenas noches';
+  const base = `${saludo}, ${profile.name}.`;
+
+  const piezas = [];
+
+  if(profile.projects.length){
+    const proyectos = profile.projects.slice(-2);
+    piezas.push(proyectos.length === 1
+      ? `seguís con ${proyectos[0]}`
+      : `seguís con ${proyectos.join(' y ')}`);
+  }
+
+  if(profile.importantDates.length){
+    const fechas = profile.importantDates.slice(-2);
+    const texto = fechas.map(d => d.when ? `${d.what} (${d.when})` : d.what).join(', ');
+    piezas.push(fechas.length === 1 ? `tenés pendiente ${texto}` : `tenés pendientes ${texto}`);
+  }
+
+  if(profile.routines.length){
+    piezas.push(`no me olvido de tu rutina de ${profile.routines[profile.routines.length - 1]}`);
+  }
+
+  const abandonado = pickAbandonedProject();
+  let extra = '';
+  if(abandonado){
+    const dias = Math.floor((Date.now() - abandonado.meta.lastMentionedAt) / (24 * 60 * 60 * 1000));
+    extra = ` Ah, y hace ${dias} día${dias === 1 ? '' : 's'} me hablaste de ${abandonado.text}, ¿cómo quedó eso?`;
+  }
+
+  if(piezas.length === 0){
+    return `${base} Ya tengo todo lo que veníamos hablando, seguimos cuando quieras.${extra}`;
+  }
+
+  // arma frase natural con hasta 2 piezas para no hacerlo largo al hablarlo
+  const elegidas = piezas.slice(0, 2);
+  const cuerpo = elegidas.length === 1 ? elegidas[0] : elegidas.join(', y ');
+  return `${base} Che, ${cuerpo}. Cuando quieras seguimos.${extra}`;
+}
+
+// límite de mensajes que viajan en cada llamada a la API, mismo criterio que chatlog (tope de 60)
+const HISTORY_LIMIT = 12;
+function trimHistory(){
+  if(history.length > HISTORY_LIMIT) history = history.slice(-HISTORY_LIMIT);
+}
+
+function extractAndStripMemoryTag(reply){
+  const match = reply.match(/\[MEMORIZE\]([\s\S]*?)\[\/MEMORIZE\]/);
+  if(!match) return { clean: reply, extracted: null };
+  const clean = reply.replace(match[0], '').trim();
+  let extracted = null;
+  try{ extracted = JSON.parse(match[1]); }catch(e){ extracted = null; }
+  return { clean, extracted };
+}
+
+// ---------- SETUP ----------
+async function initApp(){
+  await loadAppState();
+  initSpeech();
+  await loadChatLog(activeProfileId);
+  if(profile.name){
+    $('assistantName').textContent = assistantName.toUpperCase();
+    $('setupModal').style.display = 'none';
+    setStatus('idle');
+    addMessage('assistant', buildBriefingGreeting());
+  }
+  // reflejar configuración guardada en los controles
+  $('voiceToggle').classList.toggle('on', voiceOn);
+  $('langToggle').classList.toggle('on', langES);
+  $('butlerToggle').classList.toggle('on', britishButlerMode);
+  // por seguridad del navegador no arrancamos el mic solos al cargar la página;
+  // el usuario tiene que tocar el interruptor una vez para reactivarlo tras recargar
+  continuousMode = false;
+  $('continuousToggle').classList.toggle('on', false);
+  $('wakeWordInput').value = wakeWord;
+  $('wakeWordInput').placeholder = `Palabra de activación (por defecto: "${assistantName}")`;
+  $('replyLangSelect').value = replyLang;
+  $('rateSlider').value = speechRate;
+  $('rateValue').textContent = speechRate.toFixed(2) + 'x';
+}
+
+$('saveKeyBtn').onclick = () => {
+  assistantName = $('nameInput').value.trim() || 'Jarvis';
+  const userName = $('userNameInput').value.trim();
+  if(userName) profile.name = userName;
+
+  const isNewProfile = !activeProfileId;
+  if(isNewProfile){
+    activeProfileId = 'p_' + Date.now();
+    profiles.push({ id: activeProfileId, name: profile.name || 'Vos', avatarPhoto: null });
+  } else {
+    const idx = profiles.findIndex(p => p.id === activeProfileId);
+    if(idx !== -1) profiles[idx].name = profile.name || profiles[idx].name;
+  }
+  saveProfilesIndex();
+
+  $('assistantName').textContent = assistantName.toUpperCase();
+  $('setupModal').style.display = 'none';
+  setStatus('idle');
+  initSpeech();
+  saveProfile();
+  syncSettingsToProfile();
+  addMessage('assistant', `Un gusto${profile.name ? ', ' + profile.name : ''}. Ya te voy a ir conociendo mejor con el tiempo, y no vas a tener que repetirme las cosas.`);
+};
+
+initApp();
+
+$('settingsBtn').onclick = () => { $('settingsModal').style.display = 'flex'; renderMemoryView(); renderProfileSection(); };
+$('closeSettingsBtn').onclick = () => $('settingsModal').style.display = 'none';
+$('editKeyBtn').onclick = () => { $('settingsModal').style.display='none'; $('setupModal').style.display='flex'; };
+$('voiceToggle').onclick = function(){ voiceOn = !voiceOn; this.classList.toggle('on', voiceOn); syncSettingsToProfile(); };
+$('langToggle').onclick = function(){ langES = !langES; this.classList.toggle('on', langES); if(recognition) recognition.lang = langES ? 'es-ES' : 'en-US'; syncSettingsToProfile(); };
+
+$('butlerToggle').onclick = function(){
+  britishButlerMode = !britishButlerMode;
+  this.classList.toggle('on', britishButlerMode);
+  if(britishButlerMode){
+    previousReplyLang = replyLang;
+    replyLang = 'inglés';
+  } else {
+    replyLang = previousReplyLang || 'español';
+  }
+  $('replyLangSelect').value = replyLang;
+  populateVoices();
+  syncSettingsToProfile();
+};
+
+function renderProfileSection(){
+  $('profileNameInput').value = profile.name || '';
+  $('profileEmailInput').value = profile.email || '';
+  if(profile.avatarPhoto){
+    $('profilePhotoImg').src = profile.avatarPhoto;
+    $('profilePhotoImg').style.display = 'block';
+    $('profilePhotoPlaceholder').style.display = 'none';
+  } else {
+    $('profilePhotoImg').style.display = 'none';
+    $('profilePhotoPlaceholder').style.display = 'flex';
+  }
+}
+
+$('profilePhotoBtn').onclick = () => $('profilePhotoInput').click();
+$('profilePhotoInput').onchange = (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    profile.avatarPhoto = reader.result;
+    renderProfileSection();
+  };
+  reader.readAsDataURL(file);
+};
+
+$('saveProfileInfoBtn').onclick = async () => {
+  profile.name = $('profileNameInput').value.trim();
+  profile.email = $('profileEmailInput').value.trim();
+  await saveProfile();
+  const idx = profiles.findIndex(p => p.id === activeProfileId);
+  if(idx !== -1){
+    profiles[idx].name = profile.name || profiles[idx].name;
+    profiles[idx].avatarPhoto = profile.avatarPhoto || null;
+    await saveProfilesIndex();
+  }
+  const btn = $('saveProfileInfoBtn');
+  const original = btn.textContent;
+  btn.textContent = 'Guardado ✓';
+  setTimeout(() => { btn.textContent = original; }, 1500);
+};
+
+function renderMemoryView(){
+  const el = $('memoryView');
+  const parts = [];
+  if(profile.name) parts.push(`<b style="color:var(--text)">Nombre:</b> ${profile.name}`);
+  if(profile.facts.length) parts.push(`<b style="color:var(--text)">Datos:</b> ${profile.facts.join(', ')}`);
+  if(profile.projects.length) parts.push(`<b style="color:var(--text)">Proyectos:</b> ${profile.projects.join(', ')}`);
+  if(profile.routines.length) parts.push(`<b style="color:var(--text)">Rutinas:</b> ${profile.routines.join(', ')}`);
+  if(profile.preferences.length) parts.push(`<b style="color:var(--text)">Preferencias:</b> ${profile.preferences.join(', ')}`);
+  if(profile.importantDates.length) parts.push(`<b style="color:var(--text)">Fechas:</b> ${profile.importantDates.map(d=>d.what+' ('+d.when+')').join(', ')}`);
+  el.innerHTML = parts.length ? parts.join('<br><br>') : 'Todavía no guardé nada. A medida que hables conmigo, voy a ir recordando lo importante.';
+}
+
+$('clearMemoryBtn').onclick = async () => {
+  if(!confirm(`¿Seguro? Esto borra todo lo que recuerdo de ${profile.name || 'este perfil'} y su historial de conversaciones. No se puede deshacer.`)) return;
+  profile = { name:'', facts:[], projects:[], routines:[], preferences:[], importantDates:[], moodLog:[], email:'', avatarPhoto:null };
+  await saveProfile();
+  try{ await window.storage.delete('chatlog:' + activeProfileId); }catch(e){ /* nada que borrar */ }
+  const idx = profiles.findIndex(p => p.id === activeProfileId);
+  if(idx !== -1){ profiles[idx].name = ''; profiles[idx].avatarPhoto = null; await saveProfilesIndex(); }
+  renderMemoryView();
+  renderProfileSection();
+  chat.innerHTML = '';
+  emptyState.style.display = '';
+  $('settingsModal').style.display = 'none';
+  addMessage('assistant', 'Listo, borré todo lo que sabía de este perfil. Arrancamos de cero, ¿cómo te llamás?');
+};
+$('replyLangSelect').onchange = function(){ replyLang = this.value; populateVoices(); syncSettingsToProfile(); };
+
+// ---------- COPIA DE SEGURIDAD (exportar / restaurar todo) ----------
+async function exportBackup(){
+  const statusEl = $('backupStatus');
+  statusEl.style.display = 'block';
+  statusEl.style.color = 'var(--accent)';
+  statusEl.textContent = 'Armando el backup...';
+  try{
+    const bundle = { exportedAt: new Date().toISOString(), appSettings: null, profiles: profiles, profileData: {}, chatlogs: {} };
+    try{
+      const s = await window.storage.get('app_settings');
+      if(s && s.value) bundle.appSettings = JSON.parse(s.value);
+    }catch(e){ /* sin ajustes guardados todavía */ }
+
+    for(const p of profiles){
+      try{
+        const r = await window.storage.get('profile:' + p.id);
+        if(r && r.value) bundle.profileData[p.id] = JSON.parse(r.value);
+      }catch(e){ /* perfil sin memoria guardada todavía */ }
+      try{
+        const c = await window.storage.get('chatlog:' + p.id);
+        if(c && c.value) bundle.chatlogs[p.id] = JSON.parse(c.value);
+      }catch(e){ /* perfil sin historial guardado todavía */ }
+    }
+
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `jarvis_backup_${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    statusEl.textContent = 'Listo, se descargó el archivo de backup.';
+  }catch(e){
+    statusEl.style.color = 'var(--danger)';
+    statusEl.textContent = 'No pude armar el backup. Probá de nuevo.';
+  }
+}
+
+async function importBackupFile(file){
+  const statusEl = $('backupStatus');
+  statusEl.style.display = 'block';
+  statusEl.style.color = 'var(--accent)';
+  statusEl.textContent = 'Restaurando...';
+  try{
+    const text = await file.text();
+    const bundle = JSON.parse(text);
+    if(!bundle || !Array.isArray(bundle.profiles)) throw new Error('formato inválido');
+
+    if(bundle.appSettings) await storageSetWithRetry('app_settings', JSON.stringify(bundle.appSettings));
+
+    profiles = bundle.profiles;
+    await saveProfilesIndex();
+
+    if(bundle.profileData){
+      for(const id in bundle.profileData){
+        await storageSetWithRetry('profile:' + id, JSON.stringify(bundle.profileData[id]));
+      }
+    }
+    if(bundle.chatlogs){
+      for(const id in bundle.chatlogs){
+        await storageSetWithRetry('chatlog:' + id, JSON.stringify(bundle.chatlogs[id]));
+      }
+    }
+
+    statusEl.textContent = 'Restaurado. Recargando la app...';
+    setTimeout(() => location.reload(), 800);
+  }catch(e){
+    statusEl.style.color = 'var(--danger)';
+    statusEl.textContent = 'Ese archivo no parece un backup válido de esta app.';
+  }
+}
+
+$('downloadBackupBtn').onclick = exportBackup;
+$('restoreBackupBtn').onclick = () => {
+  if(!confirm('Restaurar un backup reemplaza los perfiles, memoria e historial actuales por los del archivo. ¿Seguir?')) return;
+  $('restoreBackupInput').click();
+};
+$('restoreBackupInput').onchange = (e) => {
+  const file = e.target.files[0];
+  if(file) importBackupFile(file);
+  $('restoreBackupInput').value = '';
+};
+
+// ---------- SELECTOR DE PERFILES ----------
+function renderProfilesList(){
+  const el = $('profilesList');
+  el.innerHTML = '';
+  if(profiles.length === 0){
+    el.innerHTML = '<div style="font-size:12.5px; color:var(--muted);">Todavía no hay perfiles creados.</div>';
+    return;
+  }
+  profiles.forEach(p => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; align-items:center; gap:10px; padding:8px; border:1px solid ' + (p.id === activeProfileId ? 'var(--accent-dim)' : 'var(--line)') + '; border-radius:10px; background:' + (p.id === activeProfileId ? 'rgba(94,234,212,.06)' : 'transparent') + ';';
+
+    const av = document.createElement('div');
+    av.style.cssText = 'width:36px; height:36px; border-radius:50%; flex-shrink:0; overflow:hidden; background:var(--surface-hi); display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted); font-family:JetBrains Mono,monospace;';
+    if(p.avatarPhoto){
+      const img = document.createElement('img');
+      img.src = p.avatarPhoto;
+      img.style.cssText = 'width:100%; height:100%; object-fit:cover;';
+      av.appendChild(img);
+    } else {
+      av.textContent = (p.name || '?').slice(0,2).toUpperCase();
+    }
+
+    const label = document.createElement('div');
+    label.style.cssText = 'flex:1; font-size:13.5px;';
+    label.textContent = p.name || 'Sin nombre';
+    if(p.id === activeProfileId){
+      const tag = document.createElement('span');
+      tag.textContent = ' · activo';
+      tag.style.cssText = 'color:var(--accent); font-size:11px;';
+      label.appendChild(tag);
+    }
+
+    row.appendChild(av);
+    row.appendChild(label);
+
+    if(p.id !== activeProfileId){
+      const useBtn = document.createElement('span');
+      useBtn.textContent = 'usar';
+      useBtn.style.cssText = 'cursor:pointer; text-decoration:underline; font-size:12px; color:var(--accent); font-family:JetBrains Mono,monospace; margin-right:10px;';
+      useBtn.onclick = () => switchProfileTo(p.id);
+      row.appendChild(useBtn);
+
+      const delBtn = document.createElement('span');
+      delBtn.textContent = 'eliminar';
+      delBtn.style.cssText = 'cursor:pointer; text-decoration:underline; font-size:12px; color:var(--danger); font-family:JetBrains Mono,monospace;';
+      delBtn.onclick = () => deleteProfileById(p.id);
+      row.appendChild(delBtn);
+    }
+
+    el.appendChild(row);
+  });
+}
+
+async function switchProfileTo(id){
+  if(id === activeProfileId) return;
+  window.speechSynthesis.cancel();
+  if(recognizing && recognition){ try{ recognition.stop(); }catch(e){} }
+  if(continuousMode) stopContinuousMode();
+
+  activeProfileId = id;
+  profile = { name:'', facts:[], projects:[], routines:[], preferences:[], importantDates:[], moodLog:[], email:'', avatarPhoto:null };
+  try{
+    const res = await window.storage.get('profile:' + id);
+    if(res && res.value){ profile = JSON.parse(res.value); ensureProfileShape(); }
+  }catch(e){ /* perfil nuevo, todavía sin memoria guardada */ }
+
+  chat.innerHTML = '';
+  emptyState.style.display = '';
+  await loadChatLog(id);
+  addMessage('assistant', buildBriefingGreeting());
+
+  syncSettingsToProfile();
+  renderMemoryView();
+  renderProfileSection();
+  renderProfilesList();
+  $('profilesModal').style.display = 'none';
+}
+
+async function deleteProfileById(id){
+  if(id === activeProfileId){
+    alert('No podés borrar el perfil que está activo ahora mismo. Cambiá a otro perfil primero.');
+    return;
+  }
+  const target = profiles.find(p => p.id === id);
+  if(!confirm(`¿Seguro que querés borrar el perfil "${target ? (target.name || 'sin nombre') : ''}"? Se pierde toda su memoria e historial.`)) return;
+  profiles = profiles.filter(p => p.id !== id);
+  await saveProfilesIndex();
+  try{ await window.storage.delete('profile:' + id); }catch(e){}
+  try{ await window.storage.delete('chatlog:' + id); }catch(e){}
+  renderProfilesList();
+}
+
+$('profilesBtn').onclick = () => { renderProfilesList(); $('profilesModal').style.display = 'flex'; };
+$('closeProfilesBtn').onclick = () => { $('profilesModal').style.display = 'none'; };
+
+$('addProfileBtn').onclick = async () => {
+  const name = $('newProfileNameInput').value.trim();
+  if(!name){ $('newProfileNameInput').focus(); return; }
+  const id = 'p_' + Date.now();
+  profiles.push({ id, name, avatarPhoto: null });
+  await saveProfilesIndex();
+  $('newProfileNameInput').value = '';
+  await switchProfileTo(id);
+  profile.name = name;
+  await saveProfile();
+};
+
+function voiceQualityScore(v){
+  let score = 0;
+  if(/google/i.test(v.name)) score += 2;
+  if(/natural|neural|enhanced|premium|online/i.test(v.name)) score += 3;
+  if(v.localService === false) score += 1;
+  return score;
+}
+
+function populateVoices(){
+  const langMap = { 'español':'es', 'inglés':'en', 'portugués':'pt', 'francés':'fr', 'italiano':'it' };
+  const prefix = langMap[replyLang] || 'es';
+  availableVoices = window.speechSynthesis.getVoices();
+  let matches = availableVoices.filter(v => v.lang.toLowerCase().startsWith(prefix));
+  if(matches.length === 0) matches = availableVoices;
+
+  if(britishButlerMode && replyLang === 'inglés'){
+    const british = matches.filter(v => v.lang.toLowerCase().startsWith('en-gb') || /uk|british|daniel/i.test(v.name));
+    if(british.length) matches = british;
+  }
+
+  matches = matches.slice().sort((a, b) => voiceQualityScore(b) - voiceQualityScore(a));
+
+  const sel = $('voiceSelect');
+  sel.innerHTML = '';
+  matches.forEach((v, i) => {
+    const opt = document.createElement('option');
+    opt.value = v.name;
+    opt.textContent = v.name.replace(/Google |Microsoft /gi, '') + ' · ' + v.lang;
+    sel.appendChild(opt);
+  });
+  if(matches.length > 0){
+    const remembered = pendingVoiceName ? matches.find(v => v.name === pendingVoiceName) : null;
+    selectedVoice = remembered || matches[0];
+    sel.value = selectedVoice.name;
+    pendingVoiceName = null;
+  }
+}
+if(window.speechSynthesis) window.speechSynthesis.onvoiceschanged = populateVoices;
+setTimeout(populateVoices, 300);
+
+$('voiceSelect').onchange = function(){
+  selectedVoice = availableVoices.find(v => v.name === this.value) || null;
+  syncSettingsToProfile();
+};
+$('rateSlider').oninput = function(){
+  speechRate = parseFloat(this.value);
+  $('rateValue').textContent = speechRate.toFixed(2) + 'x';
+  syncSettingsToProfile();
+};
+
+// ---------- STATUS ----------
+function setStatus(s){
+  const dot = $('statusDot'), txt = $('statusText');
+  dot.className = 'brand-dot';
+  if(s === 'listening'){ dot.classList.add('rec'); txt.textContent = 'ESCUCHANDO'; }
+  else if(s === 'thinking'){ dot.classList.add('live'); txt.textContent = 'PENSANDO'; }
+  else if(s === 'speaking'){ dot.classList.add('live'); txt.textContent = 'RESPONDIENDO'; }
+  else { txt.textContent = 'EN ESPERA'; }
+  updateOrbForState(s);
+}
+
+// ---------- INTERRUPT (stop button reuses the mic orb) ----------
+function updateOrbForState(s){
+  const icon = $('micIcon');
+  if(s === 'speaking' || s === 'thinking'){
+    icon.innerHTML = '<rect x="6" y="6" width="12" height="12" rx="2"/>';
+    $('micBtn').title = 'Detener';
+  } else {
+    icon.innerHTML = '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/>';
+    $('micBtn').title = 'Hablar';
+  }
+}
+
+// ---------- CAMERA ----------
+async function toggleCamera(){
+  if(cameraOn){
+    if(stream) stream.getTracks().forEach(t => t.stop());
+    stream = null; cameraOn = false;
+    $('camStrip').classList.remove('show');
+    $('camBtn').classList.remove('active');
+    $('camToggleInline').classList.remove('active');
+    return;
+  }
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    $('camVideo').srcObject = stream;
+    cameraOn = true;
+    $('camStrip').classList.add('show');
+    $('camBtn').classList.add('active');
+    $('camToggleInline').classList.add('active');
+  }catch(e){
+    addMessage('assistant', 'No pude acceder a la cámara. Revisá los permisos del navegador y probá de nuevo.', null, true);
+  }
+}
+$('camBtn').onclick = toggleCamera;
+$('camToggleInline').onclick = toggleCamera;
+
+function captureFrame(){
+  if(!cameraOn || !stream) return null;
+  const video = $('camVideo');
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  return canvas.toDataURL('image/jpeg', 0.7);
+}
+
+$('lookBtn').onclick = () => sendMessage('¿Qué ves? Analizá la imagen y ayudame con lo que esté haciendo.', true);
+
+// ---------- ESCUCHA CONTINUA ----------
+function startContinuousMode(){
+  if(!recognition) return;
+  continuousMode = true;
+  continuousPausedByUser = false;
+  recognition.continuous = true;
+  if(!recognizing && !continuousBusy){
+    try{ recognition.start(); }catch(e){ /* puede tirar error si ya está arrancado */ }
+  }
+}
+function stopContinuousMode(){
+  continuousMode = false;
+  if(recognition) recognition.continuous = false;
+  if(recognizing){ try{ recognition.stop(); }catch(e){} }
+}
+function pauseContinuousForProcessing(){
+  if(!continuousMode) return;
+  continuousBusy = true;
+  if(recognizing){ try{ recognition.stop(); }catch(e){} }
+}
+function resumeContinuousAfterProcessing(){
+  if(!continuousMode) return;
+  continuousBusy = false;
+  if(!continuousPausedByUser && !recognizing){
+    try{ recognition.start(); }catch(e){}
+  }
+}
+
+$('continuousToggle').onclick = function(){
+  const turningOn = !continuousMode;
+  this.classList.toggle('on', turningOn);
+  if(turningOn){
+    window.speechSynthesis.cancel();
+    startContinuousMode();
+  } else {
+    stopContinuousMode();
+  }
+  syncSettingsToProfile();
+};
+
+$('wakeWordInput').onchange = function(){
+  wakeWord = this.value.trim();
+  syncSettingsToProfile();
+};
+
+// ---------- SPEECH RECOGNITION ----------
+function initSpeech(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){
+    $('micBtn').style.opacity = '0.3';
+    $('micBtn').style.pointerEvents = 'none';
+    return;
+  }
+  recognition = new SR();
+  recognition.lang = langES ? 'es-ES' : 'en-US';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.onstart = () => { recognizing = true; $('micBtn').classList.add('listening'); setStatus('listening'); };
+  recognition.onend = () => {
+    recognizing = false; $('micBtn').classList.remove('listening');
+    if(continuousMode && !continuousBusy && !continuousPausedByUser){
+      // se cortó solo (silencio prolongado o límite del navegador): lo reiniciamos
+      setStatus('listening');
+      setTimeout(() => {
+        if(continuousMode && !continuousBusy && !continuousPausedByUser && !recognizing){
+          try{ recognition.start(); }catch(e){}
+        }
+      }, 300);
+    } else if(!continuousBusy){
+      setStatus('idle');
+    }
+    // si continuousBusy es true, no tocamos el estado acá: el ciclo de pensar/hablar
+    // ya se encarga de volver a 'idle' y reanudar la escucha cuando termine
+  };
+  recognition.onerror = () => {
+    recognizing = false; $('micBtn').classList.remove('listening');
+    if(!continuousMode || continuousBusy) setStatus('idle');
+  };
+  recognition.onresult = (e) => {
+    const result = e.results[e.resultIndex];
+    let said = result[0].transcript;
+
+    if(continuousMode){
+      const configured = (wakeWord || assistantName || '').trim();
+      if(configured){
+        const saidLower = said.toLowerCase();
+        const wakeLower = configured.toLowerCase();
+        const idx = saidLower.indexOf(wakeLower);
+        if(idx === -1){
+          // no dijo la palabra de activación en esta frase: la ignoramos y seguimos escuchando
+          return;
+        }
+        said = said.slice(idx + configured.length).replace(/^[\s,:.\-]+/, '').trim();
+        if(!said){
+          const ack = '¿Sí? Decime.';
+          addMessage('assistant', ack, null, false, true);
+          if(voiceOn) speak(ack);
+          return;
+        }
+      }
+    }
+
+    sendMessage(said, cameraOn);
+  };
+}
+$('micBtn').onclick = () => {
+  if(window.speechSynthesis.speaking){
+    window.speechSynthesis.cancel();
+    setStatus('idle');
+    if(continuousMode) resumeContinuousAfterProcessing();
+    return;
+  }
+  if(pendingRequestId){
+    pendingRequestId = null;
+    removeTyping();
+    setStatus('idle');
+    addMessage('assistant', '(cancelado)', null, true);
+    if(continuousMode) resumeContinuousAfterProcessing();
+    return;
+  }
+  if(!recognition) return;
+
+  if(continuousMode){
+    // acá el botón pausa/reanuda la escucha continua, en vez de hacer push-to-talk
+    if(recognizing){
+      continuousPausedByUser = true;
+      recognition.stop();
+      setStatus('idle');
+    } else {
+      continuousPausedByUser = false;
+      try{ recognition.start(); }catch(e){}
+    }
+    return;
+  }
+
+  if(recognizing){ recognition.stop(); return; }
+  window.speechSynthesis.cancel();
+  try{ recognition.start(); }catch(e){}
+};
+
+// ---------- GALLERY UPLOAD + PASTE IMAGE ----------
+let pendingAttachment = null;
+
+function setPendingAttachment(dataUrl){
+  pendingAttachment = dataUrl;
+  $('attachPreviewImg').src = dataUrl;
+  $('attachPreview').style.display = 'flex';
+  $('sendBtn').classList.toggle('ready', textInput.value.trim().length > 0 || !!pendingAttachment);
+}
+function clearPendingAttachment(){
+  pendingAttachment = null;
+  $('attachPreview').style.display = 'none';
+  $('galleryInput').value = '';
+  $('sendBtn').classList.toggle('ready', textInput.value.trim().length > 0);
+}
+
+$('galleryBtn').onclick = () => $('galleryInput').click();
+$('galleryInput').onchange = (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => setPendingAttachment(reader.result);
+  reader.readAsDataURL(file);
+};
+$('removeAttachBtn').onclick = clearPendingAttachment;
+
+textInput.addEventListener('paste', (e) => {
+  const items = e.clipboardData?.items;
+  if(!items) return;
+  for(const item of items){
+    if(item.type.startsWith('image/')){
+      e.preventDefault();
+      const file = item.getAsFile();
+      const reader = new FileReader();
+      reader.onload = () => setPendingAttachment(reader.result);
+      reader.readAsDataURL(file);
+      break;
+    }
+  }
+});
+
+// ---------- TEXT INPUT ----------
+textInput.addEventListener('input', () => {
+  textInput.style.height = 'auto';
+  textInput.style.height = Math.min(textInput.scrollHeight, 90) + 'px';
+  $('sendBtn').classList.toggle('ready', textInput.value.trim().length > 0 || !!pendingAttachment);
+});
+textInput.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    triggerSend();
+  }
+});
+$('sendBtn').onclick = triggerSend;
+
+function triggerSend(){
+  const text = textInput.value.trim();
+  if(!text && !pendingAttachment) return;
+  sendMessage(text || 'Analizá esta imagen.', cameraOn && !pendingAttachment, pendingAttachment);
+  clearPendingAttachment();
+}
+
+// ---------- CHAT UI ----------
+function addMessage(role, text, imageDataUrl, isError, skipSave, retryFn, existingAt){
+  emptyState.style.display = 'none';
+  const wrap = document.createElement('div');
+  wrap.className = 'msg ' + role;
+  const msgAt = existingAt || Date.now();
+  wrap.dataset.at = msgAt;
+  const av = document.createElement('div');
+  av.className = 'avatar';
+  if(role === 'user' && profile.avatarPhoto){
+    av.style.overflow = 'hidden';
+    av.style.padding = '0';
+    const avImg = document.createElement('img');
+    avImg.src = profile.avatarPhoto;
+    avImg.style.cssText = 'width:100%; height:100%; object-fit:cover; border-radius:6px;';
+    av.appendChild(avImg);
+  } else {
+    av.textContent = role === 'user' ? 'VOS' : assistantName.slice(0,2).toUpperCase();
+  }
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble' + (isError ? ' err' : '');
+  if(imageDataUrl){
+    const tag = document.createElement('div');
+    tag.className = 'thumb-tag';
+    tag.innerHTML = '<svg viewBox="0 0 24 24" style="width:11px;height:11px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> imagen adjunta';
+    bubble.appendChild(tag);
+  }
+  const p = document.createElement('div');
+  p.textContent = text;
+  bubble.appendChild(p);
+
+  if(role === 'assistant' && !isError){
+    const copyBtn = document.createElement('div');
+    copyBtn.style.cssText = 'margin-top:8px; display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--muted); cursor:pointer; font-family:JetBrains Mono,monospace;';
+    copyBtn.innerHTML = '<svg viewBox="0 0 24 24" style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> copiar';
+    copyBtn.onclick = () => {
+      navigator.clipboard.writeText(p.textContent);
+      copyBtn.lastChild.textContent = ' copiado';
+      setTimeout(() => { copyBtn.lastChild.textContent = ' copiar'; }, 1500);
+    };
+    bubble.appendChild(copyBtn);
+  }
+
+  if(isError && retryFn){
+    const retryBtn = document.createElement('div');
+    retryBtn.style.cssText = 'margin-top:8px; display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--danger); cursor:pointer; font-family:JetBrains Mono,monospace; text-decoration:underline;';
+    retryBtn.textContent = 'reintentar';
+    retryBtn.onclick = () => { wrap.remove(); retryFn(); };
+    bubble.appendChild(retryBtn);
+  }
+
+  if(!isError){
+    const controls = document.createElement('div');
+    controls.style.cssText = 'margin-top:6px; display:flex; gap:12px; font-size:10.5px; color:var(--muted); font-family:JetBrains Mono,monospace;';
+
+    if(role === 'user' && !imageDataUrl){
+      const editBtn = document.createElement('span');
+      editBtn.textContent = 'editar';
+      editBtn.style.cssText = 'cursor:pointer; text-decoration:underline;';
+      editBtn.onclick = () => startEditMessage(p, msgAt, skipSave);
+      controls.appendChild(editBtn);
+    }
+
+    const delBtn = document.createElement('span');
+    delBtn.textContent = 'eliminar';
+    delBtn.style.cssText = 'cursor:pointer; text-decoration:underline;';
+    delBtn.onclick = () => {
+      wrap.remove();
+      deleteMessageFromLog(msgAt);
+    };
+    controls.appendChild(delBtn);
+
+    bubble.appendChild(controls);
+  }
+
+  wrap.appendChild(av); wrap.appendChild(bubble);
+  chat.appendChild(wrap);
+  chat.scrollTop = chat.scrollHeight;
+  if(!skipSave && !isError) saveChatLog(role, text, imageDataUrl, msgAt);
+  return bubble;
+}
+
+function startEditMessage(p, msgAt, wasSkipSave){
+  const original = p.textContent;
+  const textarea = document.createElement('textarea');
+  textarea.value = original;
+  textarea.style.cssText = 'width:100%; min-height:50px; background:var(--bg); border:1px solid var(--accent-dim); color:var(--text); border-radius:8px; padding:8px; font-family:inherit; font-size:inherit; resize:vertical;';
+  const actions = document.createElement('div');
+  actions.style.cssText = 'display:flex; gap:8px; margin-top:6px;';
+  const saveBtn = document.createElement('span');
+  saveBtn.textContent = 'guardar';
+  saveBtn.style.cssText = 'cursor:pointer; text-decoration:underline; font-size:10.5px; color:var(--accent); font-family:JetBrains Mono,monospace;';
+  const cancelBtn = document.createElement('span');
+  cancelBtn.textContent = 'cancelar';
+  cancelBtn.style.cssText = 'cursor:pointer; text-decoration:underline; font-size:10.5px; color:var(--muted); font-family:JetBrains Mono,monospace;';
+  actions.appendChild(saveBtn); actions.appendChild(cancelBtn);
+
+  p.replaceWith(textarea);
+  textarea.after(actions);
+  textarea.focus();
+
+  const finish = (newText) => {
+    const newP = document.createElement('div');
+    newP.textContent = newText;
+    textarea.replaceWith(newP);
+    actions.remove();
+    if(newText !== original) updateMessageInLog(msgAt, newText);
+  };
+  saveBtn.onclick = () => finish(textarea.value.trim() || original);
+  cancelBtn.onclick = () => finish(original);
+}
+
+// ---------- EDITAR / ELIMINAR MENSAJES DEL HISTORIAL ----------
+async function updateMessageInLog(at, newText){
+  if(!activeProfileId) return;
+  try{
+    const res = await window.storage.get('chatlog:' + activeProfileId).catch(() => null);
+    if(!res || !res.value) return;
+    let log = JSON.parse(res.value);
+    const idx = log.findIndex(m => m.at === at);
+    if(idx !== -1){
+      log[idx].text = newText;
+      await storageSetWithRetry('chatlog:' + activeProfileId, JSON.stringify(log));
+    }
+  }catch(e){ /* no es grave */ }
+}
+
+async function deleteMessageFromLog(at){
+  if(!activeProfileId) return;
+  try{
+    const res = await window.storage.get('chatlog:' + activeProfileId).catch(() => null);
+    if(!res || !res.value) return;
+    let log = JSON.parse(res.value);
+    log = log.filter(m => m.at !== at);
+    await storageSetWithRetry('chatlog:' + activeProfileId, JSON.stringify(log));
+  }catch(e){ /* no es grave */ }
+}
+
+// ---------- PERSISTENT CHAT LOG (por perfil) ----------
+async function saveChatLog(role, text, hadImage, at){
+  if(!activeProfileId) return;
+  try{
+    const res = await window.storage.get('chatlog:' + activeProfileId).catch(() => null);
+    let log = res && res.value ? JSON.parse(res.value) : [];
+    log.push({ role, text, hadImage: !!hadImage, at: at || Date.now() });
+    if(log.length > 60) log = log.slice(-60);
+    await storageSetWithRetry('chatlog:' + activeProfileId, JSON.stringify(log));
+  }catch(e){ /* no es grave si esto falla */ }
+}
+
+async function loadChatLog(profileId){
+  if(!profileId) return;
+  try{
+    const res = await window.storage.get('chatlog:' + profileId);
+    if(res && res.value){
+      const log = JSON.parse(res.value);
+      if(log.length){
+        const divider = document.createElement('div');
+        divider.style.cssText = 'text-align:center; font-size:10.5px; color:var(--muted); font-family:JetBrains Mono,monospace; margin:6px 0; letter-spacing:.05em;';
+        divider.textContent = '── CONVERSACIONES ANTERIORES ──';
+        emptyState.style.display = 'none';
+        chat.appendChild(divider);
+        log.forEach(m => addMessage(m.role, m.text, null, false, true, null, m.at));
+        const divider2 = document.createElement('div');
+        divider2.style.cssText = divider.style.cssText;
+        divider2.textContent = '── HOY ──';
+        chat.appendChild(divider2);
+      }
+    }
+  }catch(e){ /* primera vez, todavía no hay historial para este perfil */ }
+}
+
+function addTyping(){
+  const wrap = document.createElement('div');
+  wrap.className = 'msg assistant';
+  wrap.id = 'typingMsg';
+  wrap.innerHTML = `<div class="avatar">${assistantName.slice(0,2).toUpperCase()}</div>
+    <div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div>`;
+  chat.appendChild(wrap);
+  chat.scrollTop = chat.scrollHeight;
+}
+function removeTyping(){ const t = $('typingMsg'); if(t) t.remove(); }
+
+// ---------- REMINDERS ----------
+function scheduleReminder(text, minutesFromNow){
+  const fireAt = Date.now() + minutesFromNow * 60000;
+  const id = Date.now() + Math.random();
+  const timeoutId = setTimeout(() => {
+    addMessage('assistant', `⏰ Recordatorio: ${text}`);
+    if(voiceOn) speak(`Recordatorio: ${text}`);
+    if('vibrate' in navigator) navigator.vibrate([200,100,200]);
+    reminders = reminders.filter(r => r.id !== id); // se saca solo de la lista al dispararse
+  }, minutesFromNow * 60000);
+  reminders.push({ id, text, fireAt, timeoutId });
+  return id;
+}
+
+function minutesUntil(targetDate){
+  return Math.max(1, Math.round((targetDate.getTime() - Date.now()) / 60000));
+}
+
+function nextDateForClockTime(hour, minute){
+  const now = new Date();
+  const result = new Date(now);
+  result.setHours(hour, minute, 0, 0);
+  if(result <= now) result.setDate(result.getDate() + 1); // si ya pasó esa hora hoy, es mañana
+  return result;
+}
+
+const WEEKDAY_MAP = { domingo:0, lunes:1, martes:2, miercoles:3, jueves:4, viernes:5, sabado:6 };
+
+function nextDateForWeekday(weekdayIndex, hour, minute){
+  const now = new Date();
+  const result = new Date(now);
+  result.setHours(hour, minute, 0, 0);
+  let diff = (weekdayIndex - now.getDay() + 7) % 7;
+  if(diff === 0 && result <= now) diff = 7; // si es hoy pero ya pasó esa hora, la próxima semana
+  result.setDate(now.getDate() + diff);
+  return result;
+}
+
+function stripAccents(s){
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function extractClockTime(text){
+  const m = text.match(/(?:a las|antes de las)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+  if(!m) return null;
+  let hour = parseInt(m[1]);
+  const minute = m[2] ? parseInt(m[2]) : 0;
+  const meridiem = m[3] ? m[3].toLowerCase() : null;
+  if(meridiem === 'pm' && hour < 12) hour += 12;
+  if(meridiem === 'am' && hour === 12) hour = 0;
+  // sin am/pm explícito, si la hora es chica (1 a 7) asumimos que se refiere a la tarde/noche
+  if(!meridiem && hour >= 1 && hour <= 7) hour += 12;
+  return { hour, minute, matchText: m[0] };
+}
+
+function extractWeekday(text){
+  const re = /\b(domingo|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado)\b/i;
+  const m = text.match(re);
+  if(!m) return null;
+  const index = WEEKDAY_MAP[stripAccents(m[1].toLowerCase())];
+  return { index, matchText: m[0] };
+}
+
+function detectReminder(text){
+  // patrón original: minutos/horas relativos ("recordame que X en/dentro de N minutos/horas")
+  const inMin = text.match(/(?:recordame|avisame)(?: que)? (.+?) (?:en|dentro de) (\d+)\s*minutos?/i);
+  if(inMin) return { text: inMin[1].trim(), minutes: parseInt(inMin[2]) };
+  const inHour = text.match(/(?:recordame|avisame)(?: que)? (.+?) (?:en|dentro de) (\d+)\s*horas?/i);
+  if(inHour) return { text: inHour[1].trim(), minutes: parseInt(inHour[2]) * 60 };
+
+  // formas más naturales: necesitan un pedido explícito + un horario o día para poder anclar el aviso
+  const wantsReminder = /\b(recordame|avisame|no te olvides|no me dejes olvidar)\b/i.test(text);
+  if(!wantsReminder) return null;
+
+  const clock = extractClockTime(text);
+  const weekday = extractWeekday(text);
+  if(!clock && !weekday) return null; // pidió que se le recuerde algo pero sin horario: no hay nada que anclar todavía
+
+  const target = weekday
+    ? nextDateForWeekday(weekday.index, clock ? clock.hour : 9, clock ? clock.minute : 0)
+    : nextDateForClockTime(clock.hour, clock.minute);
+
+  let taskText = text.replace(/\b(recordame|avisame|no te olvides|no me dejes olvidar)\b/i, '');
+  if(clock) taskText = taskText.replace(clock.matchText, '');
+  if(weekday) taskText = taskText.replace(new RegExp('\\bel\\s+' + weekday.matchText + '\\b', 'i'), '').replace(new RegExp('\\b' + weekday.matchText + '\\b', 'i'), '');
+  taskText = taskText.replace(/^\s*(que|de)\b/i, '');
+  taskText = taskText.replace(/^[\s,:.\-]+|[\s,:.\-]+$/g, '').trim();
+  if(!taskText) taskText = 'tu recordatorio';
+
+  return { text: taskText, minutes: minutesUntil(target) };
+}
+
+function formatDuration(minutes){
+  if(minutes < 60) return `${minutes} minuto${minutes === 1 ? '' : 's'}`;
+  if(minutes < 60 * 24){
+    const h = Math.round(minutes / 60);
+    return `${h} hora${h === 1 ? '' : 's'}`;
+  }
+  const d = Math.round(minutes / (60 * 24));
+  return `${d} día${d === 1 ? '' : 's'}`;
+}
+
+// ---------- VER / CANCELAR RECORDATORIOS ACTIVOS (mejora 6) ----------
+function detectListRemindersRequest(text){
+  return /\b(qu[eé] tengo pendiente|mis recordatorios|qu[eé] recordatorios tengo|ten[eé]s algo (?:pendiente|programado) para m[ií]|qu[eé] ten[eé]s programado)\b/i.test(text);
+}
+
+function detectCancelReminderRequest(text){
+  const m = text.match(/\bcancel(?:a|á|ar)(?=\s|$)(?: el| la)?(?: recordatorio)?(?:\s+(?:del|de|n[uú]mero)\s*)?\s*(.*)/i);
+  if(!m) return null;
+  return m[1].trim();
+}
+
+function findReminderByKey(key){
+  if(!key) return reminders.length === 1 ? reminders[0] : null; // "cancelá el recordatorio" a secas, si hay uno solo, se entiende cuál
+  const numMatch = key.match(/\d+/);
+  if(numMatch){
+    const idx = parseInt(numMatch[0]) - 1;
+    if(reminders[idx]) return reminders[idx];
+  }
+  const keyLower = key.toLowerCase();
+  return reminders.find(r => r.text.toLowerCase().includes(keyLower) || keyLower.includes(r.text.toLowerCase())) || null;
+}
+
+function buildReminderListMessage(){
+  if(reminders.length === 0) return 'No tenés ningún recordatorio programado por ahora.';
+  const items = reminders.map((r, i) => `${i + 1}. ${r.text}, en ${formatDuration(minutesUntil(new Date(r.fireAt)))}`).join('. ');
+  return `Tenés ${reminders.length} recordatorio${reminders.length === 1 ? '' : 's'} programado${reminders.length === 1 ? '' : 's'}: ${items}.`;
+}
+
+// ---------- PREGUNTA PROACTIVA (mejora 5) ----------
+// detecta tareas mencionadas de pasada, con día/horario, pero SIN pedido explícito de recordatorio
+function detectPotentialTask(text){
+  const wantsReminder = /\b(recordame|avisame|no te olvides|no me dejes olvidar)\b/i.test(text);
+  if(wantsReminder) return null; // eso ya lo maneja detectReminder directamente
+
+  const impliesTask = /\b(tengo que|debo|necesito)\b/i.test(text);
+  if(!impliesTask) return null;
+
+  const clock = extractClockTime(text);
+  const weekday = extractWeekday(text);
+  if(!clock && !weekday) return null; // sin día u horario no hay nada concreto para ofrecer recordar
+
+  const target = weekday
+    ? nextDateForWeekday(weekday.index, clock ? clock.hour : 9, clock ? clock.minute : 0)
+    : nextDateForClockTime(clock.hour, clock.minute);
+
+  let taskText = text;
+  if(clock) taskText = taskText.replace(clock.matchText, '');
+  if(weekday) taskText = taskText.replace(new RegExp('\\bel\\s+' + weekday.matchText + '\\b', 'i'), '').replace(new RegExp('\\b' + weekday.matchText + '\\b', 'i'), '');
+  taskText = taskText.replace(/^[\s,:.\-]+|[\s,:.\-]+$/g, '').trim();
+  if(!taskText) taskText = 'eso';
+
+  return { text: taskText, minutes: minutesUntil(target) };
+}
+
+// responde localmente sin llamar a la API (para recordatorios, listados, confirmaciones simples)
+function respondWithoutAPI(userText, assistantText){
+  addMessage('user', userText);
+  addMessage('assistant', assistantText);
+  if(voiceOn){ speak(assistantText); } else { resumeContinuousAfterProcessing(); }
+}
+
+// ---------- MODO INTÉRPRETE (independiente del chat, la memoria y la escucha continua) ----------
+let interpRecognition = null;
+let interpListening = false;
+let wasContinuousBeforeInterpreter = false;
+const langCodeMap = { 'español':'es-ES', 'inglés':'en-US', 'portugués':'pt-BR', 'francés':'fr-FR', 'italiano':'it-IT' };
+
+function voiceForLangPrefix(prefix){
+  const matches = availableVoices.filter(v => v.lang.toLowerCase().startsWith(prefix));
+  if(!matches.length) return null;
+  return matches.slice().sort((a, b) => voiceQualityScore(b) - voiceQualityScore(a))[0];
+}
+
+$('interpreterBtn').onclick = () => {
+  $('interpreterModal').style.display = 'flex';
+  $('interpOriginal').style.display = 'none';
+  $('interpTranslated').style.display = 'none';
+  $('interpStatus').textContent = 'Tocá el micrófono y hablá';
+  // pausamos la escucha continua mientras usás el intérprete para que no compitan por el micrófono
+  wasContinuousBeforeInterpreter = continuousMode;
+  if(continuousMode) stopContinuousMode();
+};
+
+$('closeInterpreterBtn').onclick = () => {
+  $('interpreterModal').style.display = 'none';
+  if(interpRecognition && interpListening){ try{ interpRecognition.stop(); }catch(e){} }
+  window.speechSynthesis.cancel();
+  if(wasContinuousBeforeInterpreter) startContinuousMode();
+};
+
+$('interpSwapBtn').onclick = () => {
+  const a = $('interpFromLang').value;
+  $('interpFromLang').value = $('interpToLang').value;
+  $('interpToLang').value = a;
+};
+
+$('interpMicBtn').onclick = () => {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){
+    $('interpStatus').textContent = 'Tu navegador no soporta reconocimiento de voz.';
+    return;
+  }
+  if(interpListening){
+    if(interpRecognition){ try{ interpRecognition.stop(); }catch(e){} }
+    return;
+  }
+
+  const fromLang = $('interpFromLang').value;
+  interpRecognition = new SR();
+  interpRecognition.lang = langCodeMap[fromLang] || 'es-ES';
+  interpRecognition.interimResults = false;
+  interpRecognition.maxAlternatives = 1;
+
+  interpRecognition.onstart = () => {
+    interpListening = true;
+    $('interpMicBtn').classList.add('listening');
+    $('interpStatus').textContent = 'Escuchando...';
+  };
+  interpRecognition.onend = () => {
+    interpListening = false;
+    $('interpMicBtn').classList.remove('listening');
+  };
+  interpRecognition.onerror = () => {
+    interpListening = false;
+    $('interpMicBtn').classList.remove('listening');
+    $('interpStatus').textContent = 'No te escuché bien, tocá el micrófono para reintentar.';
+  };
+  interpRecognition.onresult = (e) => {
+    const said = e.results[0][0].transcript;
+    translateAndSpeak(said);
+  };
+
+  window.speechSynthesis.cancel();
+  try{ interpRecognition.start(); }catch(e){}
+};
+
+async function translateAndSpeak(text){
+  const fromLang = $('interpFromLang').value;
+  const toLang = $('interpToLang').value;
+
+  $('interpOriginal').style.display = 'block';
+  $('interpOriginal').textContent = text;
+  $('interpTranslated').style.display = 'block';
+  $('interpTranslated').textContent = 'Traduciendo...';
+  $('interpStatus').textContent = 'Traduciendo...';
+
+  try{
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 400,
+        system: `Sos un intérprete simultáneo. Traducí el texto que te pasan de ${fromLang} a ${toLang}, de forma natural y fluida, como lo diría un hablante nativo. Respondé ÚNICAMENTE con la traducción, sin explicaciones ni comillas ni texto adicional. Escribí pensando en que se lee en voz alta: sin markdown, sin guiones raros, con puntuación simple.`,
+        messages: [{ role: 'user', content: [{ type: 'text', text }] }],
+      })
+    });
+    const data = await res.json();
+
+    if(data.error){
+      $('interpTranslated').textContent = 'Error: ' + data.error.message;
+      $('interpStatus').textContent = 'Tocá el micrófono para intentar de nuevo';
+      return;
+    }
+    const translation = data.content?.filter(b => b.type === 'text').map(b => b.text).join(' ').trim() || '(no se pudo traducir)';
+    $('interpTranslated').textContent = translation;
+    $('interpStatus').textContent = 'Tocá el micrófono para hablar de nuevo';
+
+    const prefix = (langCodeMap[toLang] || 'en-US').split('-')[0];
+    const voice = voiceForLangPrefix(prefix);
+    const u = new SpeechSynthesisUtterance(sanitizeForSpeech(translation));
+    u.lang = langCodeMap[toLang] || 'en-US';
+    if(voice) u.voice = voice;
+    u.rate = speechRate;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  }catch(e){
+    $('interpTranslated').textContent = 'No pude conectar para traducir.';
+    $('interpStatus').textContent = 'Tocá el micrófono para intentar de nuevo';
+  }
+}
+
+// ---------- MODO LECTURA / RESUMEN (independiente del chat normal) ----------
+$('readModeBtn').onclick = () => {
+  $('readModeInput').value = '';
+  $('pdfStatus').style.display = 'none';
+  $('readModeModal').style.display = 'flex';
+};
+$('closeReadModeBtn').onclick = () => { $('readModeModal').style.display = 'none'; };
+
+// ---------- SUBIR PDF (pdf.js) ----------
+if(window.pdfjsLib){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+$('pdfUploadBtn').onclick = () => $('pdfInput').click();
+
+$('pdfInput').onchange = async (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+
+  const statusEl = $('pdfStatus');
+  statusEl.style.display = 'block';
+  statusEl.style.color = 'var(--accent)';
+  statusEl.textContent = `Leyendo ${file.name}...`;
+
+  if(!window.pdfjsLib){
+    statusEl.style.color = 'var(--danger)';
+    statusEl.textContent = 'No pude cargar el lector de PDF (sin conexión al CDN). Probá pegar el texto a mano.';
+    return;
+  }
+
+  try{
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let fullText = '';
+    const maxPages = Math.min(pdf.numPages, 40); // límite razonable para no trabarnos con PDFs enormes
+
+    for(let i = 1; i <= maxPages; i++){
+      statusEl.textContent = `Leyendo ${file.name}... página ${i} de ${maxPages}`;
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items.map(it => it.str).join(' ');
+      fullText += pageText + '\n\n';
+    }
+
+    fullText = fullText.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+
+    if(!fullText){
+      statusEl.style.color = 'var(--danger)';
+      statusEl.textContent = 'Este PDF no tiene texto seleccionable (parece escaneado como imagen). No puedo leerlo así, probá con uno que tenga texto real.';
+      $('pdfInput').value = '';
+      return;
+    }
+
+    let truncatedNote = '';
+    if(fullText.length > 18000){
+      fullText = fullText.slice(0, 18000);
+      truncatedNote = ' (corté el texto porque el PDF era muy largo, esto es más o menos las primeras páginas)';
+    }
+    if(pdf.numPages > maxPages && !truncatedNote){
+      truncatedNote = ` (el PDF tiene ${pdf.numPages} páginas, solo leí las primeras ${maxPages})`;
+    }
+
+    $('readModeInput').value = fullText;
+    statusEl.style.color = 'var(--accent)';
+    statusEl.textContent = `Listo: extraje el texto de "${file.name}"${truncatedNote}. Elegí abajo qué hacer con él.`;
+  }catch(err){
+    statusEl.style.color = 'var(--danger)';
+    statusEl.textContent = 'No pude leer ese PDF. Puede estar dañado, protegido con contraseña, o ser muy pesado.';
+  }finally{
+    $('pdfInput').value = '';
+  }
+};
+
+$('readLiteralBtn').onclick = () => {
+  const text = $('readModeInput').value.trim();
+  if(!text) return;
+  $('readModeModal').style.display = 'none';
+  addMessage('user', '📄 Leeme esto tal cual (texto pegado)');
+  addMessage('assistant', text);
+  window.speechSynthesis.cancel();
+  if(voiceOn){
+    setStatus('speaking');
+    speak(text);
+  }
+};
+
+$('readSummaryBtn').onclick = async () => {
+  const text = $('readModeInput').value.trim();
+  if(!text) return;
+  $('readModeModal').style.display = 'none';
+  addMessage('user', '📄 Resumime este texto (texto pegado)');
+  addTyping();
+  setStatus('thinking');
+
+  try{
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 500,
+        system: `Sos ${assistantName}. Te van a pasar un texto largo (artículo, mensaje, lo que sea). Tu única tarea es armar un resumen hablado, claro y en ${replyLang}, de lo más importante, en un tono cercano y directo. Máximo 6-8 frases.
+
+IMPORTANTE - Esto se lee en voz alta con una voz de síntesis del navegador: no uses markdown ni asteriscos, evitá guiones, abreviaciones y símbolos raros, y usá oraciones cortas con puntuación simple. No agregues opiniones que no estén en el texto original.`,
+        messages: [{ role: 'user', content: [{ type: 'text', text }] }],
+      })
+    });
+    const data = await res.json();
+    removeTyping();
+
+    if(data.error){
+      addMessage('assistant', 'Error al resumir: ' + data.error.message, null, true, false, () => $('readSummaryBtn').onclick());
+      setStatus('idle');
+      return;
+    }
+    const summary = data.content?.filter(b => b.type === 'text').map(b => b.text).join(' ') || 'No pude generar el resumen, probá de nuevo.';
+    addMessage('assistant', summary);
+    if(voiceOn){
+      setStatus('speaking');
+      speak(summary);
+    } else {
+      setStatus('idle');
+    }
+  }catch(e){
+    removeTyping();
+    addMessage('assistant', 'No pude conectar para resumir. Probá de nuevo.', null, true);
+    setStatus('idle');
+  }
+};
+
+// ---------- CLAUDE CALL ----------
+let pendingRequestId = null;
+
+async function sendMessage(text, attachImage, attachedDataUrl){
+  if(!text) return;
+  if(continuousMode) pauseContinuousForProcessing();
+  textInput.value = ''; textInput.style.height = 'auto';
+  $('sendBtn').classList.remove('ready');
+  touchMentionedProjects(text);
+
+  // si Jarvis había preguntado "¿querés que te lo recuerde?", esta respuesta la resuelve primero
+  if(pendingTaskConfirmation){
+    const pending = pendingTaskConfirmation;
+    pendingTaskConfirmation = null;
+    const isYes = /^\s*(s[ií]|dale|bueno|ok|okay|de una|obvio|hac[eé]lo|por favor)\b/i.test(text);
+    const isNo = /^\s*(no|no hace falta|no gracias|nah|paso)\b/i.test(text);
+    if(isYes){
+      scheduleReminder(pending.text, pending.minutes);
+      respondWithoutAPI(text, `Listo, te aviso en ${formatDuration(pending.minutes)}: "${pending.text}".`);
+      return;
+    }
+    if(isNo){
+      respondWithoutAPI(text, 'Dale, no te aviso nada entonces.');
+      return;
+    }
+    // si no fue un sí/no claro, seguimos con el mensaje normalmente, sin trabar la charla
+  }
+
+  if(detectListRemindersRequest(text)){
+    respondWithoutAPI(text, buildReminderListMessage());
+    return;
+  }
+
+  const cancelKey = detectCancelReminderRequest(text);
+  if(cancelKey !== null){
+    const target = findReminderByKey(cancelKey);
+    if(target){
+      clearTimeout(target.timeoutId);
+      reminders = reminders.filter(r => r.id !== target.id);
+      respondWithoutAPI(text, `Listo, cancelé el recordatorio de ${target.text}.`);
+    } else {
+      respondWithoutAPI(text, reminders.length ? `No encontré ese recordatorio. ${buildReminderListMessage()}` : 'No tenés ningún recordatorio programado para cancelar.');
+    }
+    return;
+  }
+
+  const rem = detectReminder(text);
+  if(rem){
+    scheduleReminder(rem.text, rem.minutes);
+    respondWithoutAPI(text, `Listo, te aviso en ${formatDuration(rem.minutes)}: "${rem.text}". Necesito que mantengas esta app abierta para poder avisarte.`);
+    return;
+  }
+
+  const potentialTask = detectPotentialTask(text);
+  if(potentialTask){
+    pendingTaskConfirmation = potentialTask;
+    respondWithoutAPI(text, `Che, eso suena a algo que no querés dejar pasar. ¿Querés que te lo recuerde en ${formatDuration(potentialTask.minutes)}?`);
+    return;
+  }
+
+  const frame = attachedDataUrl || (attachImage ? captureFrame() : null);
+  addMessage('user', text, frame);
+
+  const content = [{ type: 'text', text }];
+  if(frame){
+    const mimeMatch = frame.match(/^data:(image\/[a-zA-Z+]+);base64,/);
+    const mediaType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    content.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: frame.split(',')[1] } });
+  }
+  history.push({ role: 'user', content });
+
+  await attemptClaudeCall();
+}
+
+async function attemptClaudeCall(){
+  addTyping();
+  setStatus('thinking');
+  trimHistory();
+
+  const myRequestId = Symbol('req');
+  pendingRequestId = myRequestId;
+
+  try{
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 600,
+        system: `Sos ${assistantName}, un asistente personal por voz, como un amigo de confianza que conoce bien a esta persona. Respondé siempre en ${replyLang}, con tono cercano, directo, cálido, nada robótico (2-4 frases salvo que pidan más detalle). Si te mandan una imagen, analizála y dá indicaciones concretas de qué hacer o dónde tocar/mirar.
+${britishButlerMode ? '\nModo especial activado: hablás como un mayordomo británico distinguido, formal y ceremonioso, con cortesía elegante y vocabulario refinado, sin dejar de ser cálido y útil.\n' : ''}
+IMPORTANTE - Tu respuesta se lee en voz alta con una voz de síntesis del navegador, así que escribí pensando en eso:
+- No uses markdown, asteriscos, ni símbolos como #, *, _, ~.
+- Evitá guiones para unir palabras o hacer aclaraciones (nada de "algo - como esto"); si necesitás aclarar algo, usá una frase nueva.
+- Evitá abreviaciones (escribí "por ejemplo" en vez de "ej.", "doctor" en vez de "Dr.", "número" en vez de "n°", etc).
+- Evitá signos raros o poco comunes (guiones bajos, barras, símbolos de moneda pegados a números, emojis).
+- Usá oraciones cortas y puntuación simple (puntos y comas), evitando punto y coma, paréntesis o comillas anidadas.
+- Si mezclás una palabra en otro idioma (nombres propios, términos técnicos en inglés), integrala en la oración de forma natural, sin comillas ni cursiva.
+
+IMPORTANTE - Sonás como una persona real, no como una IA genérica:
+- Evitá frases hechas de asistente de IA como "es importante destacar que", "cabe mencionar que", "en resumen", "espero que esto te sea de ayuda", "no dudes en preguntarme si necesitás algo más", "como mencioné anteriormente".
+- Evitá armar la respuesta con estructuras simétricas y predecibles tipo "por un lado... por otro lado", o enumerar puntos como si fuera una lista formal.
+- Andá directo al punto, como lo diría un amigo por mensaje de voz. Nada de cierres genéricos ni disculpas de más.
+
+Esto es lo que ya sabés de esta persona de charlas anteriores:
+${buildMemoryContext()}
+
+Usá esta información para responder de forma más personal, sin repetir preguntas que ya te contestaron, y ajustando el tono si notás que está cansado, estresado, contento, etc.
+
+IMPORTANTE - Memoria automática: si en el mensaje del usuario aparece información nueva que valga la pena recordar a futuro (su nombre, un proyecto en el que trabaja, una rutina o hábito, una preferencia, una fecha importante como cumpleaños o entrega, o una señal clara de su estado de ánimo), agregá al FINAL de tu respuesta (después de todo el texto que se le va a leer en voz alta) un bloque así, sin mencionarlo ni leerlo en voz alta:
+[MEMORIZE]{"name":null,"facts":[],"projects":[],"routines":[],"preferences":[],"importantDates":[{"what":"","when":""}],"mood":null}[/MEMORIZE]
+Completá solo los campos que tengan info nueva relevante (dejá null o arrays vacíos si no hay nada nuevo). Si no hay nada nuevo para recordar, NO agregues ese bloque.`,
+        messages: history,
+      })
+    });
+    const data = await res.json();
+
+    // si mientras esperábamos el usuario canceló, descartamos la respuesta
+    if(pendingRequestId !== myRequestId) return;
+    pendingRequestId = null;
+    removeTyping();
+
+    if(data.error){
+      addMessage('assistant', 'Error: ' + data.error.message, null, true, false, () => attemptClaudeCall());
+      setStatus('idle');
+      resumeContinuousAfterProcessing();
+      return;
+    }
+    const rawReply = data.content?.filter(b => b.type === 'text').map(b => b.text).join(' ') || 'No obtuve respuesta, probá de nuevo.';
+    const { clean, extracted } = extractAndStripMemoryTag(rawReply);
+    if(extracted) mergeMemory(extracted);
+
+    history.push({ role: 'assistant', content: [{ type: 'text', text: rawReply }] });
+    addMessage('assistant', clean);
+
+    if(voiceOn){
+      setStatus('speaking');
+      speak(clean);
+    } else {
+      setStatus('idle');
+      resumeContinuousAfterProcessing();
+    }
+  }catch(e){
+    if(pendingRequestId !== myRequestId) return;
+    pendingRequestId = null;
+    removeTyping();
+    addMessage('assistant', 'No pude conectar. Probá de nuevo en un momento.', null, true, false, () => attemptClaudeCall());
+    setStatus('idle');
+    resumeContinuousAfterProcessing();
+  }
+}
+
+function sanitizeForSpeech(text){
+  return text
+    .replace(/\*\*|\*|__|_|~~|`/g, '')        // restos de markdown que se cuelen
+    .replace(/#+\s?/g, '')                     // encabezados tipo #
+    .replace(/\s-\s/g, ', ')                   // guiones usados como aclaración
+    .replace(/[–—]/g, ', ')                    // guiones largos
+    .replace(/;/g, '.')                        // punto y coma, corta feo al hablar
+    .replace(/\(([^)]+)\)/g, ', $1, ')         // aclaraciones entre paréntesis
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function speak(text){
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(sanitizeForSpeech(text));
+  const langMap = { 'español':'es-ES', 'inglés':'en-US', 'portugués':'pt-BR', 'francés':'fr-FR', 'italiano':'it-IT' };
+  u.lang = langMap[replyLang] || 'es-ES';
+  if(selectedVoice) u.voice = selectedVoice;
+  u.rate = speechRate;
+  u.pitch = 1.0;
+  u.onend = () => { setStatus('idle'); resumeContinuousAfterProcessing(); };
+  window.speechSynthesis.speak(u);
+}
+</script>
+</body>
+</html>
