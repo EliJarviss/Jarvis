@@ -337,6 +337,8 @@
     <h2>Configuración</h2>
     <p>Ajustá cómo responde tu asistente.</p>
 
+    <button class="btn" id="helpBtn" style="margin-bottom:16px;">❓ Cómo usar Jarvis</button>
+
     <div class="toggle-row" style="flex-direction:column; align-items:stretch; gap:10px; border-bottom:1px solid var(--line); padding-bottom:16px;">
       <span style="font-weight:600;">👤 Tu perfil</span>
       <div style="display:flex; align-items:center; gap:12px;">
@@ -367,7 +369,7 @@
         <span>🎙️ Escucha continua (beta)</span>
         <div class="switch" id="continuousToggle"></div>
       </div>
-      <small style="color:var(--muted); font-size:11px; line-height:1.4;">Te escucha sin que tengas que tocar el micrófono cada vez. Puede captar ruido de fondo o reiniciarse solo. Tocá el micrófono para pausarla o reanudarla en cualquier momento. Después de recargar la página, tenés que volver a activarla una vez (el navegador lo pide así).</small>
+      <small style="color:var(--muted); font-size:11px; line-height:1.4;">Decí la palabra de activación una vez, hablá todo lo que necesites, y cerrá diciendo "listo" o "terminé" cuando termines (no hace falta repetir la palabra clave en cada frase). Puede captar ruido de fondo o reiniciarse solo. Tocá el micrófono para pausarla o reanudarla en cualquier momento. Después de recargar la página, tenés que volver a activarla una vez (el navegador lo pide así).</small>
       <input type="text" id="wakeWordInput" placeholder="Palabra de activación (por defecto: el nombre del asistente)" style="width:100%; background: var(--bg); border:1px solid var(--line); color: var(--text); padding: 9px 11px; border-radius:9px; font-size:13px; margin-top:4px;">
     </div>
     <div class="toggle-row" style="flex-direction:column; align-items:stretch; gap:6px;">
@@ -415,6 +417,52 @@
     <div class="modal-actions" style="margin-top:18px">
       <button class="btn" id="editKeyBtn">Cambiar nombre</button>
       <button class="btn primary" id="closeSettingsBtn">Listo</button>
+    </div>
+  </div>
+</div>
+
+<!-- help / instructivo modal -->
+<div class="modal-bg" id="helpModal" style="display:none">
+  <div class="modal">
+    <h2>Cómo usar Jarvis</h2>
+    <p>Una guía rápida de todo lo que podés hacer.</p>
+
+    <div style="font-size:13.5px; line-height:1.6; color:var(--text);">
+
+      <p><b style="color:var(--accent);">💬 Charlar</b><br>
+      Escribí en el cuadro de texto, o tocá el micrófono (el círculo redondo) y hablá. Podés adjuntar una foto desde la galería, pegar una imagen copiada, o activar la cámara para que Jarvis vea lo que le mostrás en vivo.</p>
+
+      <p><b style="color:var(--accent);">🎙️ Escucha continua</b><br>
+      Activala en Configuración. Decí la palabra de activación (por defecto el nombre del asistente, o la que configures) una sola vez, después hablá todo lo que necesites sin repetirla, y cerrá diciendo "listo" o "terminé" cuando termines. Tocar el micrófono la pausa o reanuda en cualquier momento.</p>
+
+      <p><b style="color:var(--accent);">⏰ Recordatorios</b><br>
+      Pedí cosas como "recordame que tengo turno a las 5" o "avisame el viernes que entrego el informe". Preguntá "¿qué tengo pendiente?" para ver la lista, y "cancelá el de X" para borrar uno puntual. Si mencionás una tarea con fecha pero no pedís explícitamente que te avise, Jarvis te va a preguntar si querés que te lo recuerde.</p>
+
+      <p><b style="color:var(--accent);">📄 Leer o resumir texto</b><br>
+      Ícono del libro en el encabezado. Pegá un texto largo o subí un PDF, y elegí si querés que lo lea tal cual o que te lo resuma antes de leerlo en voz alta.</p>
+
+      <p><b style="color:var(--accent);">🌐 Modo intérprete</b><br>
+      Ícono del globo. Elegí los dos idiomas, tocá el micrófono, hablá, y te traduce y lee en voz alta. No queda guardado en el historial ni en la memoria.</p>
+
+      <p><b style="color:var(--accent);">👥 Perfiles</b><br>
+      Ícono de personas. Cada perfil tiene su propia memoria e historial separado — útil si más de una persona usa el mismo Jarvis.</p>
+
+      <p><b style="color:var(--accent);">🎩 Modo mayordomo británico</b><br>
+      Toggle en Configuración. Cambia el idioma de respuesta a inglés y busca una voz británica, con un tono más formal.</p>
+
+      <p><b style="color:var(--accent);">🧠 Memoria</b><br>
+      Jarvis recuerda solo, sin que se lo pidas, cosas como tu nombre, proyectos, rutinas, preferencias y fechas importantes. Podés ver todo lo que sabe (o borrarlo) desde Configuración. Si dejás de mencionar un proyecto por unos días, Jarvis lo va a sacar a relucir solo.</p>
+
+      <p><b style="color:var(--accent);">💾 Copia de seguridad</b><br>
+      Desde Configuración podés descargar un backup con todos los perfiles, memoria e historial, y restaurarlo cuando quieras (útil antes de cambios grandes, o para mudar todo a otro dispositivo).</p>
+
+      <p><b style="color:var(--accent);">✏️ Editar y borrar</b><br>
+      Cada mensaje tiene opciones para copiar, editar o eliminar, así podés corregir el historial si algo quedó mal.</p>
+
+    </div>
+
+    <div class="modal-actions" style="margin-top:18px;">
+      <button class="btn primary" id="closeHelpBtn" style="flex:1;">Listo</button>
     </div>
   </div>
 </div>
@@ -512,7 +560,11 @@
 // Mantiene la misma forma de uso (get/set/delete) para no tener que tocar el resto del código.
 const SUPABASE_URL = 'https://rsntvjfrpvxnfckgsbfj.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ldDBxUPNzGgRE33caCk3ZQ_E3urPq7h';
-const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// clave compartida entre este frontend y el backend/Supabase, para que solo Jarvis pueda usarlos
+const JARVIS_APP_SECRET = '620cd901bd4c35050d0eda85e9b8b95c4c80c6b3d943e887';
+const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  global: { headers: { 'x-jarvis-secret': JARVIS_APP_SECRET } }
+});
 
 window.storage = {
   async get(key){
@@ -549,6 +601,9 @@ let continuousMode = false;
 let continuousPausedByUser = false;
 let continuousBusy = false;
 let wakeWord = '';
+// sesión activa de "decís la palabra clave una vez, hablás todo lo que necesites, cerrás con 'listo'"
+const CONTINUOUS_SESSION_TIMEOUT_MS = 12000; // si hay silencio 12s sin decir "listo", se cierra sola
+let continuousSession = { active: false, buffer: '', timeoutId: null };
 let cameraOn = false;
 let stream = null;
 let history = [];
@@ -893,6 +948,8 @@ initApp();
 $('settingsBtn').onclick = () => { $('settingsModal').style.display = 'flex'; renderMemoryView(); renderProfileSection(); };
 $('closeSettingsBtn').onclick = () => $('settingsModal').style.display = 'none';
 $('editKeyBtn').onclick = () => { $('settingsModal').style.display='none'; $('setupModal').style.display='flex'; };
+$('helpBtn').onclick = () => { $('settingsModal').style.display = 'none'; $('helpModal').style.display = 'flex'; };
+$('closeHelpBtn').onclick = () => { $('helpModal').style.display = 'none'; };
 $('voiceToggle').onclick = function(){ voiceOn = !voiceOn; this.classList.toggle('on', voiceOn); syncSettingsToProfile(); };
 $('langToggle').onclick = function(){ langES = !langES; this.classList.toggle('on', langES); if(recognition) recognition.lang = langES ? 'es-ES' : 'en-US'; syncSettingsToProfile(); };
 
@@ -1295,6 +1352,33 @@ function stopContinuousMode(){
   continuousMode = false;
   if(recognition) recognition.continuous = false;
   if(recognizing){ try{ recognition.stop(); }catch(e){} }
+  resetContinuousSession();
+}
+
+// ---------- SESIÓN DE ESCUCHA CON CIERRE POR FRASE ----------
+// palabras que cierran la sesión: decís "Jarvis" una vez, hablás lo que necesites, y cerrás con una de estas
+const CLOSING_WORDS_RE = /\b(listo|termin(?:e|é)|eso es todo|nada m(?:a|á)s|es todo)(?=\s|$|[,.!?])/i;
+
+function extractClosing(text){
+  const m = text.match(CLOSING_WORDS_RE);
+  if(!m) return null;
+  return text.slice(0, m.index).replace(/[\s,:.\-]+$/, '').trim();
+}
+
+function resetContinuousSession(){
+  if(continuousSession.timeoutId) clearTimeout(continuousSession.timeoutId);
+  continuousSession = { active: false, buffer: '', timeoutId: null };
+}
+
+function armContinuousSessionTimeout(){
+  if(continuousSession.timeoutId) clearTimeout(continuousSession.timeoutId);
+  continuousSession.timeoutId = setTimeout(finalizeContinuousSession, CONTINUOUS_SESSION_TIMEOUT_MS);
+}
+
+function finalizeContinuousSession(){
+  const finalText = continuousSession.buffer.trim();
+  resetContinuousSession();
+  if(finalText) sendMessage(finalText, cameraOn);
 }
 function pauseContinuousForProcessing(){
   if(!continuousMode) return;
@@ -1365,6 +1449,21 @@ function initSpeech(){
     let said = result[0].transcript;
 
     if(continuousMode){
+      // ya estamos "dentro" de una sesión abierta (dijiste la palabra clave hace un rato)
+      if(continuousSession.active){
+        const before = extractClosing(said);
+        if(before !== null){
+          // dijo la palabra de cierre: sumamos lo último y mandamos todo junto
+          if(before) continuousSession.buffer = (continuousSession.buffer + ' ' + before).trim();
+          finalizeContinuousSession();
+          return;
+        }
+        // todavía no cerró: sumamos esta frase al mensaje y seguimos escuchando
+        continuousSession.buffer = (continuousSession.buffer + ' ' + said).trim();
+        armContinuousSessionTimeout();
+        return;
+      }
+
       const configured = (wakeWord || assistantName || '').trim();
       if(configured){
         const saidLower = said.toLowerCase();
@@ -1376,11 +1475,28 @@ function initSpeech(){
         }
         said = said.slice(idx + configured.length).replace(/^[\s,:.\-]+/, '').trim();
         if(!said){
-          const ack = '¿Sí? Decime.';
+          // dijo solo la palabra clave, sin nada más: abrimos la sesión y esperamos
+          const ack = 'Te escucho. Decime "listo" cuando termines.';
           addMessage('assistant', ack, null, false, true);
           if(voiceOn) speak(ack);
+          continuousSession.active = true;
+          continuousSession.buffer = '';
+          armContinuousSessionTimeout();
           return;
         }
+
+        const before = extractClosing(said);
+        if(before !== null){
+          // dijo todo en una sola frase: "Jarvis, recordame comprar pan, listo"
+          if(before) sendMessage(before, cameraOn);
+          return;
+        }
+
+        // arranca la sesión con lo que ya dijo, esperando más o el cierre
+        continuousSession.active = true;
+        continuousSession.buffer = said;
+        armContinuousSessionTimeout();
+        return;
       }
     }
 
@@ -1918,9 +2034,9 @@ async function translateAndSpeak(text){
   try{
     const res = await fetch('/api/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-jarvis-secret': JARVIS_APP_SECRET },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 400,
         system: `Sos un intérprete simultáneo. Traducí el texto que te pasan de ${fromLang} a ${toLang}, de forma natural y fluida, como lo diría un hablante nativo. Respondé ÚNICAMENTE con la traducción, sin explicaciones ni comillas ni texto adicional. Escribí pensando en que se lee en voz alta: sin markdown, sin guiones raros, con puntuación simple.`,
         messages: [{ role: 'user', content: [{ type: 'text', text }] }],
@@ -2048,9 +2164,9 @@ $('readSummaryBtn').onclick = async () => {
   try{
     const res = await fetch('/api/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-jarvis-secret': JARVIS_APP_SECRET },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 500,
         system: `Sos ${assistantName}. Te van a pasar un texto largo (artículo, mensaje, lo que sea). Tu única tarea es armar un resumen hablado, claro y en ${replyLang}, de lo más importante, en un tono cercano y directo. Máximo 6-8 frases.
 
@@ -2166,11 +2282,14 @@ async function attemptClaudeCall(){
   try{
     const res = await fetch('/api/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-jarvis-secret': JARVIS_APP_SECRET },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-5',
         max_tokens: 600,
-        system: `Sos ${assistantName}, un asistente personal por voz, como un amigo de confianza que conoce bien a esta persona. Respondé siempre en ${replyLang}, con tono cercano, directo, cálido, nada robótico (2-4 frases salvo que pidan más detalle). Si te mandan una imagen, analizála y dá indicaciones concretas de qué hacer o dónde tocar/mirar.
+        system: [
+          {
+            type: 'text',
+            text: `Sos ${assistantName}, un asistente personal por voz, como un amigo de confianza que conoce bien a esta persona. Respondé siempre en ${replyLang}, con tono cercano, directo, cálido, nada robótico (2-4 frases salvo que pidan más detalle). Si te mandan una imagen, analizála y dá indicaciones concretas de qué hacer o dónde tocar/mirar.
 ${britishButlerMode ? '\nModo especial activado: hablás como un mayordomo británico distinguido, formal y ceremonioso, con cortesía elegante y vocabulario refinado, sin dejar de ser cálido y útil.\n' : ''}
 IMPORTANTE - Tu respuesta se lee en voz alta con una voz de síntesis del navegador, así que escribí pensando en eso:
 - No uses markdown, asteriscos, ni símbolos como #, *, _, ~.
@@ -2193,6 +2312,9 @@ Usá esta información para responder de forma más personal, sin repetir pregun
 IMPORTANTE - Memoria automática: si en el mensaje del usuario aparece información nueva que valga la pena recordar a futuro (su nombre, un proyecto en el que trabaja, una rutina o hábito, una preferencia, una fecha importante como cumpleaños o entrega, o una señal clara de su estado de ánimo), agregá al FINAL de tu respuesta (después de todo el texto que se le va a leer en voz alta) un bloque así, sin mencionarlo ni leerlo en voz alta:
 [MEMORIZE]{"name":null,"facts":[],"projects":[],"routines":[],"preferences":[],"importantDates":[{"what":"","when":""}],"mood":null}[/MEMORIZE]
 Completá solo los campos que tengan info nueva relevante (dejá null o arrays vacíos si no hay nada nuevo). Si no hay nada nuevo para recordar, NO agregues ese bloque.`,
+            cache_control: { type: 'ephemeral' }
+          }
+        ],
         messages: history,
       })
     });
