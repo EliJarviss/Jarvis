@@ -1,6 +1,17 @@
+// Esta funcion vive en el servidor de Vercel, nunca en el navegador.
+// Es la unica que conoce la clave secreta de Anthropic.
+// Recibe exactamente lo mismo que el frontend le mandaba antes a Anthropic
+// (model, max_tokens, system, messages), le agrega la clave, y devuelve la respuesta tal cual.
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: { message: 'Metodo no permitido' } });
+  }
+
+  // solo acepta pedidos que traigan la clave secreta compartida con el frontend de Jarvis
+  const secretRecibido = req.headers['x-jarvis-secret'];
+  if (!secretRecibido || secretRecibido !== process.env.JARVIS_APP_SECRET) {
+    return res.status(401).json({ error: { message: 'No autorizado' } });
   }
 
   try {
