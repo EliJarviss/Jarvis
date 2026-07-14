@@ -43,17 +43,52 @@ export default async function handler(req, res) {
       geminiBody.systemInstruction = { parts: [{ text: systemText }] };
     }
 
-    const model = 'gemini-2.5-flash';
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    // Buscamos un modelo Flash que esté disponible en esta cuenta, sin depender de un nombre fijo.
+    // Probamos una lista de candidatos en orden; si ninguno anda, preguntamos a Google cuáles hay.
+    const candidatos = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest-001'];
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': process.env.GEMINI_API_KEY
-      },
-      body: JSON.stringify(geminiBody)
-    });
+    async function pedirAModelo(nombreModelo){
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${nombreModelo}:generateContent`;
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+        body: JSON.stringify(geminiBody)
+      });
+      return r;
+    }
+
+    let response = null;
+    let modeloUsado = null;
+    for(const cand of candidatos){
+      const r = await pedirAModelo(cand);
+      if(r.ok){ response = r; modeloUsado = cand; break; }
+      // si falla por modelo inexistente/no disponible seguimos probando; otros errores los cortamos
+      const errData = await r.clone().json().catch(() => ({}));
+      const msg = (errData?.error?.message || '').toLowerCase();
+      const esProblemaDeModelo = msg.includes('not found') || msg.includes('no longer available') || msg.includes('not supported');
+      if(!esProblemaDeModelo){ response = r; modeloUsado = cand; break; }
+    }
+
+    // si ninguno de la lista anduvo, le preguntamos a Google qué modelos tiene esta cuenta
+    if(!response){
+      const listR = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+        headers: { 'x-goog-api-key': process.env.GEMINI_API_KEY }
+      });
+      const listData = await listR.json();
+      const flashDisponible = (listData?.models || []).find(m =>
+        /flash/i.test(m.name || '') &&
+        (m.supportedGenerationMethods || []).includes('generateContent')
+      );
+      if(flashDisponible){
+        const nombre = flashDisponible.name.replace('models/', '');
+        response = await pedirAModelo(nombre);
+        modeloUsado = nombre;
+      }
+    }
+
+    if(!response){
+      return res.status(502).json({ error: { message: 'No encontre ningun modelo de Gemini disponible en esta cuenta.' } });
+    }
 
     const data = await response.json();
 
