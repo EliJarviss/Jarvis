@@ -372,6 +372,14 @@
       <small style="color:var(--muted); font-size:11px; line-height:1.4;">Decí la palabra de activación una vez, hablá todo lo que necesites, y cerrá diciendo "listo" o "terminé" cuando termines (no hace falta repetir la palabra clave en cada frase). Puede captar ruido de fondo o reiniciarse solo. Tocá el micrófono para pausarla o reanudarla en cualquier momento. Después de recargar la página, tenés que volver a activarla una vez (el navegador lo pide así).</small>
       <input type="text" id="wakeWordInput" placeholder="Palabra de activación (por defecto: el nombre del asistente)" style="width:100%; background: var(--bg); border:1px solid var(--line); color: var(--text); padding: 9px 11px; border-radius:9px; font-size:13px; margin-top:4px;">
     </div>
+    <div class="toggle-row" style="flex-direction:column; align-items:stretch; gap:8px;">
+      <span>🤖 Motor de IA</span>
+      <select id="aiEngineSelect" style="width:100%; background: var(--bg); border:1px solid var(--line); color: var(--text); padding: 10px 12px; border-radius:9px; font-size:14px;">
+        <option value="gemini">Gemini (gratis)</option>
+        <option value="claude">Claude (de paga, más potente)</option>
+      </select>
+      <small style="color:var(--muted); font-size:11px; line-height:1.4;">Elegí con qué IA habla Jarvis. Gemini no tiene costo. Claude necesita saldo cargado en tu cuenta de Anthropic.</small>
+    </div>
     <div class="toggle-row" style="flex-direction:column; align-items:stretch; gap:6px;">
       <div style="display:flex; align-items:center; justify-content:space-between;">
         <span>🎩 Modo mayordomo británico</span>
@@ -562,6 +570,9 @@ const SUPABASE_URL = 'https://rsntvjfrpvxnfckgsbfj.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ldDBxUPNzGgRE33caCk3ZQ_E3urPq7h';
 // clave compartida entre este frontend y el backend/Supabase, para que solo Jarvis pueda usarlos
 const JARVIS_APP_SECRET = '620cd901bd4c35050d0eda85e9b8b95c4c80c6b3d943e887';
+function chatEndpoint(){
+  return aiEngine === 'gemini' ? '/api/chat-gemini' : '/api/chat';
+}
 const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   global: { headers: { 'x-jarvis-secret': JARVIS_APP_SECRET } }
 });
@@ -586,6 +597,7 @@ window.storage = {
 };
 
 let assistantName = 'Jarvis';
+let aiEngine = 'gemini'; // 'gemini' (gratis) o 'claude' (de paga)
 let replyLang = 'español';
 let speechRate = 1.0;
 let selectedVoice = null;
@@ -629,6 +641,7 @@ function applySettingsToVars(s){
   if(s.previousReplyLang) previousReplyLang = s.previousReplyLang;
   if(typeof s.continuousMode === 'boolean') continuousMode = s.continuousMode;
   if(typeof s.wakeWord === 'string') wakeWord = s.wakeWord;
+  if(typeof s.aiEngine === 'string') aiEngine = s.aiEngine;
   pendingVoiceName = s.voiceName || null;
 }
 
@@ -732,7 +745,7 @@ async function loadAppState(){
 function syncSettingsToProfile(){
   const settings = {
     assistantName, replyLang, speechRate, voiceOn, langES,
-    britishButlerMode, previousReplyLang, continuousMode, activeProfileId, wakeWord,
+    britishButlerMode, previousReplyLang, continuousMode, activeProfileId, wakeWord, aiEngine,
     voiceName: selectedVoice ? selectedVoice.name : null
   };
   storageSetWithRetry('app_settings', JSON.stringify(settings));
@@ -908,6 +921,7 @@ async function initApp(){
   $('voiceToggle').classList.toggle('on', voiceOn);
   $('langToggle').classList.toggle('on', langES);
   $('butlerToggle').classList.toggle('on', britishButlerMode);
+  $('aiEngineSelect').value = aiEngine;
   // por seguridad del navegador no arrancamos el mic solos al cargar la página;
   // el usuario tiene que tocar el interruptor una vez para reactivarlo tras recargar
   continuousMode = false;
@@ -952,6 +966,11 @@ $('helpBtn').onclick = () => { $('settingsModal').style.display = 'none'; $('hel
 $('closeHelpBtn').onclick = () => { $('helpModal').style.display = 'none'; };
 $('voiceToggle').onclick = function(){ voiceOn = !voiceOn; this.classList.toggle('on', voiceOn); syncSettingsToProfile(); };
 $('langToggle').onclick = function(){ langES = !langES; this.classList.toggle('on', langES); if(recognition) recognition.lang = langES ? 'es-ES' : 'en-US'; syncSettingsToProfile(); };
+
+$('aiEngineSelect').onchange = function(){
+  aiEngine = this.value;
+  syncSettingsToProfile();
+};
 
 $('butlerToggle').onclick = function(){
   britishButlerMode = !britishButlerMode;
@@ -1886,6 +1905,14 @@ function formatDuration(minutes){
 }
 
 // ---------- VER / CANCELAR RECORDATORIOS ACTIVOS (mejora 6) ----------
+// ---------- CAMBIO DE MOTOR POR VOZ ----------
+// "activa modo trabajo" -> Claude (potente, de paga) / "activa modo normal" -> Gemini (gratis)
+function detectEngineSwitch(text){
+  if(/\b(activ[aá]|pon[eé]|cambi[aá] a|entra en|modo)\s*(el\s*)?(modo\s*)?trabajo\b/i.test(text)) return 'claude';
+  if(/\b(activ[aá]|pon[eé]|cambi[aá] a|entra en|modo)\s*(el\s*)?(modo\s*)?(normal|gratis|ahorro)\b/i.test(text)) return 'gemini';
+  return null;
+}
+
 function detectListRemindersRequest(text){
   return /\b(qu[eé] tengo pendiente|mis recordatorios|qu[eé] recordatorios tengo|ten[eé]s algo (?:pendiente|programado) para m[ií]|qu[eé] ten[eé]s programado)\b/i.test(text);
 }
@@ -2032,7 +2059,7 @@ async function translateAndSpeak(text){
   $('interpStatus').textContent = 'Traduciendo...';
 
   try{
-    const res = await fetch('/api/chat', {
+    const res = await fetch(chatEndpoint(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-jarvis-secret': JARVIS_APP_SECRET },
       body: JSON.stringify({
@@ -2162,7 +2189,7 @@ $('readSummaryBtn').onclick = async () => {
   setStatus('thinking');
 
   try{
-    const res = await fetch('/api/chat', {
+    const res = await fetch(chatEndpoint(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-jarvis-secret': JARVIS_APP_SECRET },
       body: JSON.stringify({
@@ -2225,6 +2252,18 @@ async function sendMessage(text, attachImage, attachedDataUrl){
     // si no fue un sí/no claro, seguimos con el mensaje normalmente, sin trabar la charla
   }
 
+  const engineSwitch = detectEngineSwitch(text);
+  if(engineSwitch){
+    aiEngine = engineSwitch;
+    $('aiEngineSelect').value = aiEngine;
+    syncSettingsToProfile();
+    const msg = engineSwitch === 'claude'
+      ? 'Listo, modo trabajo activado. Ahora estoy usando Claude.'
+      : 'Listo, volví al modo normal con Gemini.';
+    respondWithoutAPI(text, msg);
+    return;
+  }
+
   if(detectListRemindersRequest(text)){
     respondWithoutAPI(text, buildReminderListMessage());
     return;
@@ -2280,7 +2319,7 @@ async function attemptClaudeCall(){
   pendingRequestId = myRequestId;
 
   try{
-    const res = await fetch('/api/chat', {
+    const res = await fetch(chatEndpoint(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-jarvis-secret': JARVIS_APP_SECRET },
       body: JSON.stringify({
